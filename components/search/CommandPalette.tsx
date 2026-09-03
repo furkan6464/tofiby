@@ -57,7 +57,7 @@ export function CommandPalette() {
       }
     }
     for (const g of goals.filter((g) => g.userId === user.id)) {
-      if (q && !g.title.toLowerCase().includes(q)) continue;
+      if (q && !g.title?.toLowerCase().includes(q)) continue;
       out.push({
         key: `g-${g.id}`,
         kind: t("search.goal"),
@@ -66,7 +66,7 @@ export function CommandPalette() {
       });
     }
     for (const task of tasks.filter((x) => x.userId === user.id)) {
-      if (q && !task.title.toLowerCase().includes(q) && !task.date.includes(q)) continue;
+      if (q && !task.title?.toLowerCase().includes(q) && !task.date?.includes(q)) continue;
       out.push({
         key: `t-${task.id}`,
         kind: t("search.task"),

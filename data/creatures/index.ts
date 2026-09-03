@@ -1,4 +1,5 @@
-import type { CreatureStage } from "@/lib/gameConfig";
+import { STAGE_ORDER, type CreatureStage } from "@/lib/gameConfig";
+import { resolveSpeciesId } from "@/data/species/catalog";
 import type { Genetics, SpeciesId } from "@/lib/types";
 import { EGG_FRAMES } from "./egg";
 import { PALETTES, tintPalette } from "./palettes";
@@ -32,11 +33,15 @@ export function getCreatureArt(
   hueShift: number,
   genetics?: Genetics | null,
 ): { frames: CreatureFrames; palette: Palette } {
+  const id = resolveSpeciesId(speciesId);
+  const safeStage = STAGE_ORDER.includes(stage) ? stage : "baby";
   const raw =
-    stage === "egg" ? EGG_FRAMES[speciesId] : STAGES[speciesId][stage];
+    safeStage === "egg"
+      ? (EGG_FRAMES[id] ?? EGG_FRAMES.tofiby)
+      : (STAGES[id]?.[safeStage] ?? STAGES.tofiby.baby);
   return {
-    frames: stage === "egg" ? raw : applyGenetics(raw, genetics),
-    palette: tintPalette(PALETTES[speciesId], hueShift),
+    frames: safeStage === "egg" ? raw : applyGenetics(raw, genetics),
+    palette: tintPalette(PALETTES[id] ?? PALETTES.tofiby, Number.isFinite(hueShift) ? hueShift : 330),
   };
 }
 

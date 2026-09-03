@@ -63,12 +63,12 @@ const DROOP = overlay((g) => {
 function mapFrames(frames: CreatureFrames, fn: (f: PixelFrame) => PixelFrame): CreatureFrames {
   const keys = Object.keys(frames) as (keyof CreatureFrames)[];
   const next = { ...frames };
-  for (const k of keys) next[k] = frames[k].map(fn);
+  for (const k of keys) next[k] = (frames[k] ?? []).map(fn);
   return next;
 }
 
 export function applyGenetics(frames: CreatureFrames, genetics?: Genetics | null): CreatureFrames {
-  if (!genetics) return frames;
+  if (!frames || !genetics) return frames;
   return mapFrames(frames, (frame) => {
     let out = frame;
     if (genetics.earForm === "antenli") out = stamp(out, ANTENNA);

@@ -26,7 +26,7 @@ export default function HomePage() {
   const creature = useActiveCreature();
   const allGoals = useApp((s) => s.goals);
   const allTasks = useApp((s) => s.tasks);
-  const scores = useApp((s) => s.scores);
+  const scores = useApp((s) => s.scores) ?? [];
   const addTask = useApp((s) => s.addTask);
   const update = useApp((s) => s.updateSettings);
   const [quick, setQuick] = useState("");

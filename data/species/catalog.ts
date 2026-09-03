@@ -126,6 +126,11 @@ export function speciesGender(id: SpeciesId): CreatureGender {
   return speciesDef(id)?.gender ?? "kiz";
 }
 
+export function resolveSpeciesId(id: unknown): SpeciesId {
+  if (typeof id === "string" && speciesDef(id as SpeciesId)) return id as SpeciesId;
+  return "tofiby";
+}
+
 export function resolvedGender(c: {
   gender?: CreatureGender | null;
   speciesId: SpeciesId;

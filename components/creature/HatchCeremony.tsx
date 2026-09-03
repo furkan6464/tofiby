@@ -50,7 +50,7 @@ export function HatchCeremony() {
     };
   }, [open, dismiss, mutation, dismissMut]);
 
-  if (!creature) return null;
+  if (!open || !creature) return null;
   const name = friendName(creature.name);
   const art = getCreatureArt(
     creature.speciesId,

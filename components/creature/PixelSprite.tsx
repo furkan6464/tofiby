@@ -118,8 +118,8 @@ export function PixelSprite({
               ? "worried"
               : "idle");
       const strip = bank[mode] ?? bank.idle;
-      const frame = strip[idleIndex % strip.length] ?? bank.idle[0];
-      draw(frame);
+      const frame = strip[idleIndex % strip.length] ?? bank.idle?.[0];
+      if (frame) draw(frame);
       raf = requestAnimationFrame(tick);
     };
 

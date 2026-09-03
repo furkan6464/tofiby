@@ -1509,25 +1509,40 @@ export const useApp = create<AppState>()(
       skipHydration: true,
       version: 6,
       migrate: (persisted) => {
-        const p = persisted as {
-          creatures?: Creature[];
-          users?: Account[];
-          goals?: Goal[];
-          tasks?: Task[];
-        } & Record<string, unknown>;
-        return {
-          ...p,
-          creatures: (p.creatures ?? []).map((c) => normalizeCreature(c)),
-          users: (p.users ?? []).map((u) => normalizeUser(u)),
-          goals: (p.goals ?? []).map((g) => hydrateGoal(g)),
-          tasks: (p.tasks ?? []).map((task) => hydrateTask(task)),
-          milestones: p.milestones ?? [],
-          busySlots: p.busySlots ?? [],
-          offlineOps: p.offlineOps ?? [],
-          sharedQuests: p.sharedQuests ?? [],
-          taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
-          achievements: p.achievements ?? [],
-        };
+        try {
+          const p = persisted as {
+            creatures?: Creature[];
+            users?: Account[];
+            goals?: Goal[];
+            tasks?: Task[];
+          } & Record<string, unknown>;
+          return {
+            ...p,
+            creatures: (p.creatures ?? []).flatMap((c) => {
+              try {
+                return [normalizeCreature(c)];
+              } catch {
+                return [];
+              }
+            }),
+            users: (p.users ?? []).map((u) => normalizeUser(u)),
+            goals: (p.goals ?? []).map((g) => hydrateGoal(g)),
+            tasks: (p.tasks ?? []).map((task) => hydrateTask(task)),
+            milestones: p.milestones ?? [],
+            busySlots: p.busySlots ?? [],
+            offlineOps: p.offlineOps ?? [],
+            sharedQuests: p.sharedQuests ?? [],
+            taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
+            achievements: p.achievements ?? [],
+            scores: p.scores ?? [],
+            friendships: p.friendships ?? [],
+            pairs: p.pairs ?? [],
+            pokes: p.pokes ?? [],
+            notices: p.notices ?? [],
+          };
+        } catch {
+          return persisted;
+        }
       },
       partialize: (s) => ({
         users: s.users,

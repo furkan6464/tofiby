@@ -83,7 +83,7 @@ export function weeklyReview(input: {
     (t) => t.userId === input.userId && input.week.includes(t.date) && t.status !== "postponed",
   );
   const done = weekTasks.filter((t) => t.completed || t.status === "done").length;
-  const scores = input.scores.filter(
+  const scores = (input.scores ?? []).filter(
     (s) => s.userId === input.userId && input.week.includes(s.date),
   );
   const dcsVals = scores.filter((s) => s.dcs !== null).map((s) => s.dcs as number);
