@@ -84,8 +84,66 @@ function useCreaturePanel() {
   return { user, creature, greet, tap, spriteState, sleepy };
 }
 
+/** Soft wander into empty rail space — stroll right, peek, come home. */
+function useRailWander(enabled: boolean) {
+  const [x, setX] = useState(0);
+  const [flip, setFlip] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setX(0);
+      setFlip(false);
+      return;
+    }
+    let cancelled = false;
+    let timer = 0;
+
+    const loop = () => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        const trip = Math.random();
+        if (trip < 0.55) {
+          setFlip(false);
+          setX(52 + Math.round(Math.random() * 40));
+          timer = window.setTimeout(() => {
+            if (cancelled) return;
+            setFlip(true);
+            setX(0);
+            timer = window.setTimeout(() => {
+              if (cancelled) return;
+              setFlip(false);
+              loop();
+            }, 1500);
+          }, 2400 + Math.random() * 2200);
+        } else if (trip < 0.8) {
+          setFlip(false);
+          setX(28);
+          timer = window.setTimeout(() => {
+            if (cancelled) return;
+            setX(0);
+            loop();
+          }, 1600);
+        } else {
+          loop();
+        }
+      }, 7500 + Math.random() * 9000);
+    };
+
+    loop();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [enabled]);
+
+  return { x, flip };
+}
+
 export function CreatureRail() {
-  const { user, creature, greet, tap, spriteState } = useCreaturePanel();
+  const { user, creature, greet, tap, spriteState, sleepy } = useCreaturePanel();
+  const wanderOn = Boolean(creature) && !sleepy && spriteState !== "sick";
+  const { x, flip } = useRailWander(wanderOn);
+
   if (!user || !creature) return null;
   const today = todayKey(user.timezone);
   const progress = liveProgress(creature);
@@ -93,16 +151,28 @@ export function CreatureRail() {
   return (
     <aside className="flex h-dvh w-[16.5rem] shrink-0 flex-col border-l border-white/[0.06] bg-base px-5 py-6">
       <p className="text-[10px] uppercase tracking-wide text-faint">{t("nav.creatureCol")}</p>
-      <button className="mt-4 text-left" onClick={tap} aria-label={t("widget.open", { name: friendName(creature.name) })}>
-        <CreatureView
-          speciesId={creature.speciesId}
-          stage={creature.stage}
-          hueShift={creature.hueShift}
-          genetics={creature.genetics}
-          pixelSize={4}
-          state={spriteState}
-        />
-      </button>
+      <div className="relative mt-4 h-[8.5rem] w-full overflow-hidden">
+        <button
+          className="absolute left-0 top-0 text-left transition-transform duration-[1400ms] ease-in-out"
+          style={{ transform: `translateX(${x}px)` }}
+          onClick={tap}
+          aria-label={t("widget.open", { name: friendName(creature.name) })}
+        >
+          <span
+            className="inline-block transition-transform duration-300"
+            style={{ transform: flip ? "scaleX(-1)" : "scaleX(1)" }}
+          >
+            <CreatureView
+              speciesId={creature.speciesId}
+              stage={creature.stage}
+              hueShift={creature.hueShift}
+              genetics={creature.genetics}
+              pixelSize={4}
+              state={spriteState}
+            />
+          </span>
+        </button>
+      </div>
       {greet ? <p className="mt-3 text-sm">{t("story.morning")}</p> : null}
       <p className="mt-4 font-display text-2xl">{friendName(creature.name)}</p>
       <p className="text-xs text-muted">

@@ -1,4 +1,4 @@
-const CACHE = "tofiby-v3";
+const CACHE = "tofiby-v4";
 const PRECACHE = ["/", "/anasayfa", "/takvim", "/hedeflerim", "/gorevler", "/analiz", "/ayarlar"];
 
 self.addEventListener("install", (event) => {

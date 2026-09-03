@@ -75,10 +75,15 @@ export default function AnalyticsPage() {
   const window = bundle.routine.dominant ? WINDOWS[bundle.routine.dominant] : "—";
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8">
+    <main className="mx-auto max-w-4xl px-5 py-8">
       <h1 className="font-display text-4xl">{t("insights.title")}</h1>
       <Card className="mt-6 p-5">
-        <YearHeatmap today={today} scores={heatScores} userId={user.id} />
+        <YearHeatmap
+          today={today}
+          scores={heatScores}
+          userId={user.id}
+          since={user.createdAt.slice(0, 10)}
+        />
       </Card>
       <Card className="mt-4 space-y-3 p-5">
         <p>{t("insights.consistency", { n: bundle.consistencyPct, delta })}</p>

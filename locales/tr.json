@@ -193,7 +193,8 @@
     "emptyToday": "Bugün için görev yok. İstersen bir tane ekle — ya da bu gün nötr kalsın.",
     "streakToast": "Seri günü! Bugün sayıldı.",
     "allDone": "Bugün tamam. {name} bunu hatırlayacak.",
-    "heatTitle": "Son bir yıl"
+    "heatTitle": "Son bir yıl",
+    "heatTitleJourney": "Başlangıçtan bugüne"
   },
   "heat": {
     "tooltip": "{date} · {gp} GP · %{pct}"

@@ -147,3 +147,19 @@ export function contributionWeeks(endKey: string, weeks = 53): string[][] {
     Array.from({ length: 7 }, (_, i) => addDays(startMonday, w * 7 + i)),
   );
 }
+
+/** Weeks from the Monday of `startKey`'s week through the week of `endKey` (capped at 53). */
+export function contributionWeeksSince(startKey: string, endKey: string): string[][] {
+  const startMonday = weekKeys(startKey)[0];
+  const endMonday = weekKeys(endKey)[0];
+  const span = Math.max(0, Math.round((Date.parse(`${endMonday}T00:00:00Z`) - Date.parse(`${startMonday}T00:00:00Z`)) / (7 * 86_400_000)));
+  const weeks = Math.min(53, span + 1);
+  const firstMonday = addDays(endMonday, -(weeks - 1) * 7);
+  // Prefer starting at signup week when the journey is shorter than a year.
+  const alignedStart = firstMonday < startMonday ? startMonday : firstMonday;
+  const alignedWeeks =
+    Math.round((Date.parse(`${endMonday}T00:00:00Z`) - Date.parse(`${alignedStart}T00:00:00Z`)) / (7 * 86_400_000)) + 1;
+  return Array.from({ length: Math.max(1, alignedWeeks) }, (_, w) =>
+    Array.from({ length: 7 }, (_, i) => addDays(alignedStart, w * 7 + i)),
+  );
+}

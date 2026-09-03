@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { contributionWeeks, shortDate } from "@/lib/dates";
+import { contributionWeeksSince, shortDate } from "@/lib/dates";
 import { heatLevel } from "@/lib/growthEngine";
 import { t } from "@/lib/i18n";
 import type { DailyScore } from "@/lib/types";
@@ -18,12 +18,16 @@ export function YearHeatmap({
   today,
   scores,
   userId,
+  since,
 }: {
   today: string;
   scores: DailyScore[];
   userId: string;
+  /** Account created date (YYYY-MM-DD). Grid starts here instead of a blank year. */
+  since?: string;
 }) {
-  const weeks = useMemo(() => contributionWeeks(today), [today]);
+  const start = since && since <= today ? since : today;
+  const weeks = useMemo(() => contributionWeeksSince(start, today), [start, today]);
   const byDate = useMemo(() => {
     const m = new Map<string, DailyScore>();
     for (const s of scores) {
@@ -40,21 +44,24 @@ export function YearHeatmap({
   } | null>(null);
 
   return (
-    <div className="relative overflow-x-auto">
-      <p className="mb-2 text-xs text-faint">{t("home.heatTitle")}</p>
-      <div className="flex gap-[3px]">
+    <div className="relative w-full">
+      <p className="mb-2 text-xs text-faint">{t("home.heatTitleJourney")}</p>
+      <div className="flex w-full gap-[3px]">
         {weeks.map((week, wi) => (
-          <div key={wi} className="flex flex-col gap-[3px]">
+          <div key={wi} className="flex min-w-0 flex-1 flex-col gap-[3px]">
             {week.map((d) => {
               const score = byDate.get(d);
               const level = heatLevel(score);
+              const beforeStart = d < start;
               const future = d > today;
+              const hidden = beforeStart || future;
               return (
                 <button
                   key={d}
                   type="button"
-                  disabled={future}
+                  disabled={hidden}
                   onMouseEnter={(e) => {
+                    if (hidden) return;
                     const r = (e.target as HTMLElement).getBoundingClientRect();
                     setTip({
                       date: d,
@@ -65,10 +72,10 @@ export function YearHeatmap({
                     });
                   }}
                   onMouseLeave={() => setTip(null)}
-                  className="h-[11px] w-[11px] rounded-[2px]"
+                  className="aspect-square w-full min-h-[8px] rounded-[2px]"
                   style={{
-                    background: future ? "transparent" : COLORS[level],
-                    opacity: future ? 0 : 1,
+                    background: hidden ? "transparent" : COLORS[level],
+                    opacity: hidden ? 0 : 1,
                   }}
                   aria-label={d}
                 />
