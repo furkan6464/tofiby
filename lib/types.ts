@@ -12,7 +12,8 @@ export type SpeciesId =
   | "ruji"
   | "kalyoz"
   | "burku"
-  | "podo";
+  | "podo"
+  | "maskoz";
 
 export type CreatureStatus = "active" | "retired";
 export type GoalStatus = "active" | "archived";

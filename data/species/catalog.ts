@@ -95,6 +95,16 @@ export const SPECIES_CATALOG: SpeciesDef[] = [
     unlock: "starter",
   },
   {
+    id: "maskoz",
+    nameKey: "species.maskoz",
+    blurbKey: "species.maskozBlurb",
+    baseHue: 32,
+    gender: "erkek",
+    starter: true,
+    mutation: false,
+    unlock: "starter",
+  },
+  {
     id: "isilti",
     nameKey: "species.isilti",
     blurbKey: "species.isiltiBlurb",

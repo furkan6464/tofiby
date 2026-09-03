@@ -1,16 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { useSession } from "@/lib/store";
 import { CreatureView } from "@/components/creature/CreatureView";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-
+import { EggRevealCard } from "@/components/landing/EggRevealCard";
 import { starterSpecies } from "@/data/species/catalog";
+import type { SpeciesId } from "@/lib/types";
 
 export default function LandingPage() {
   const user = useSession();
+  const [openEggs, setOpenEggs] = useState<Partial<Record<SpeciesId, boolean>>>({});
   return (
     <main className="relative mx-auto min-h-dvh max-w-6xl overflow-hidden px-5 pb-16 pt-8">
       <header className="flex items-center justify-between">
@@ -79,14 +82,15 @@ export default function LandingPage() {
           <h2 className="font-display text-2xl">{t("landing.speciesTitle")}</h2>
           <p className="mt-2 text-sm text-faint">{t("landing.speciesHint")}</p>
           <div className="mt-5 flex flex-wrap gap-4">
-            {starterSpecies().map((id, i) => (
-              <div
+            {starterSpecies().map((id) => (
+              <EggRevealCard
                 key={id}
-                className={`rounded-panel bg-surface p-3 ${i === 2 ? "mt-5" : ""}`}
-              >
-                <CreatureView speciesId={id} stage="egg" hueShift={0} pixelSize={3} />
-                <p className="mt-1 text-center text-xs text-muted">{t(`species.${id}`)}</p>
-              </div>
+                id={id}
+                open={Boolean(openEggs[id])}
+                onToggle={() =>
+                  setOpenEggs((cur) => ({ ...cur, [id]: !cur[id] }))
+                }
+              />
             ))}
           </div>
         </div>

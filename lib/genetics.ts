@@ -161,6 +161,15 @@ export function speciesDefaults(speciesId: SpeciesId): Omit<Genetics, "hueShift"
       accessory: "none",
     };
   }
+  if (speciesId === "maskoz") {
+    return {
+      eyeShape: "badem",
+      earForm: "yuvarlak",
+      signature: "none",
+      microAnim: "none",
+      accessory: "none",
+    };
+  }
   return {
     eyeShape: "yildiz",
     earForm: "antenli",
@@ -240,6 +249,7 @@ export const SPECIES_BASE_HUE: Record<SpeciesId, number> = {
   kalyoz: speciesHue("kalyoz"),
   burku: speciesHue("burku"),
   podo: speciesHue("podo"),
+  maskoz: speciesHue("maskoz"),
 };
 
 export function assignHiddenEggSpecies(

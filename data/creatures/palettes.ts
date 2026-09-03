@@ -140,6 +140,20 @@ export const PALETTES: Record<SpeciesId, Palette> = {
     shellShade: SHELL.shellShade,
     speckle: "#3A2010",
   },
+  maskoz: {
+    body: "#5C4A3A",
+    shade: "#3E3228",
+    belly: "#C4A888",
+    eye: "#141010",
+    highlight: "#FFFFFF",
+    blush: "#C47858",
+    outline: "#1A1210",
+    accent: "#E8C04A",
+    lid: "#2A2A32",
+    shell: SHELL.shell,
+    shellShade: SHELL.shellShade,
+    speckle: "#E8C04A",
+  },
 };
 
 function hexToRgb(hex: string) {

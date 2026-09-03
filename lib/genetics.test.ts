@@ -61,9 +61,9 @@ describe("genetics", () => {
     assert.ok(mean < 8 || mean > 352);
   });
 
-  it("keeps four girl and four boy starters", () => {
+  it("keeps four girl and five boy starters", () => {
     assert.deepEqual(starterSpecies("kiz"), ["tofiby", "bulut", "yildiz", "ruji"]);
-    assert.deepEqual(starterSpecies("erkek"), ["gizem", "kalyoz", "burku", "podo"]);
+    assert.deepEqual(starterSpecies("erkek"), ["gizem", "kalyoz", "burku", "podo", "maskoz"]);
   });
 
   it("draws mystery eggs only from the chosen gender pool", () => {

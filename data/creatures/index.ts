@@ -8,6 +8,7 @@ import { BURKU_STAGES } from "./burku";
 import { GIZEM_STAGES } from "./gizem";
 import { ISILTI_STAGES } from "./isilti";
 import { KALYOZ_STAGES } from "./kalyoz";
+import { MASKOZ_STAGES } from "./maskoz";
 import { PODO_STAGES } from "./podo";
 import { RUJI_STAGES } from "./ruji";
 import { TOFIBY_STAGES } from "./tofiby";
@@ -25,6 +26,7 @@ const STAGES: Record<SpeciesId, Record<string, CreatureFrames>> = {
   kalyoz: KALYOZ_STAGES,
   burku: BURKU_STAGES,
   podo: PODO_STAGES,
+  maskoz: MASKOZ_STAGES,
 };
 
 export function getCreatureArt(

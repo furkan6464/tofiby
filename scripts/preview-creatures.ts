@@ -16,6 +16,7 @@ const SPECIES: SpeciesId[] = [
   "kalyoz",
   "burku",
   "podo",
+  "maskoz",
   "isilti",
 ];
 const STAGES: CreatureStage[] = ["egg", "baby", "child", "teen", "adult", "elder"];

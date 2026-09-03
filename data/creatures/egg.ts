@@ -98,6 +98,13 @@ const PODO = speckled([
   [14, 19],
   [18, 19],
 ]);
+const MASKOZ = speckled([
+  [14, 11],
+  [18, 11],
+  [16, 13],
+  [13, 17],
+  [19, 18],
+]);
 
 function pack(base: PixelFrame): CreatureFrames {
   return makeEggAnims(base, [crack(base, false), crack(base, true)]);
@@ -113,4 +120,5 @@ export const EGG_FRAMES: Record<string, CreatureFrames> = {
   kalyoz: pack(KALYOZ),
   burku: pack(BURKU),
   podo: pack(PODO),
+  maskoz: pack(MASKOZ),
 };
