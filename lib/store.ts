@@ -793,6 +793,17 @@ export const useApp = create<AppState>()(
         }
         set({
           tasks: nextTasks,
+          scores: upsertDayScore(
+            get().scores,
+            scoreFromTasks(
+              user.id,
+              task.date,
+              nextTasks.filter((x) => x.userId === user.id && x.date === task.date),
+              mine?.currentStreak ?? 0,
+              mine?.health === "sick",
+              rest,
+            ),
+          ),
           creatures,
           pendingHatch,
           pendingMutation,
@@ -1451,6 +1462,18 @@ function mergeCloudProfiles(users: Account[], profiles: CloudProfile[]): Account
     });
   }
   return next;
+}
+
+function upsertDayScore(scores: DailyScore[], live: DailyScore): DailyScore[] {
+  const i = scores.findIndex((s) => s.userId === live.userId && s.date === live.date);
+  if (i >= 0) {
+    const prev = scores[i];
+    if (prev.finalized) return scores;
+    const next = scores.slice();
+    next[i] = live;
+    return next;
+  }
+  return [...scores, live];
 }
 
 function normalizeUser(u: Account): Account {
