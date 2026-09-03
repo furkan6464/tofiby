@@ -18,12 +18,14 @@ import { isRestWeekday, shouldSleep } from "@/lib/bond";
 import { friendName, t } from "@/lib/i18n";
 import { Progress } from "../ui/Progress";
 import { CreatureView } from "./CreatureView";
+import { StageProgress } from "./StageProgress";
 import type { SpriteState } from "@/data/creatures/types";
 
 function useCreaturePanel() {
   const user = useSession();
   const creature = useActiveCreature();
   const { score, rest } = useTodayBundle();
+  const todayGp = score && !score.finalized ? score.gpEarned : 0;
   const dcs = score?.dcs ?? null;
   const anim = useApp((s) => s.widgetAnim);
   const setAnim = useApp((s) => s.setWidgetAnim);
@@ -81,7 +83,7 @@ function useCreaturePanel() {
           ? "yawn"
           : anim;
 
-  return { user, creature, greet, tap, spriteState, sleepy };
+  return { user, creature, greet, tap, spriteState, sleepy, todayGp };
 }
 
 /** Soft wander into empty rail space — stroll right, peek, come home. */
@@ -140,13 +142,13 @@ function useRailWander(enabled: boolean) {
 }
 
 export function CreatureRail() {
-  const { user, creature, greet, tap, spriteState, sleepy } = useCreaturePanel();
+  const { user, creature, greet, tap, spriteState, sleepy, todayGp } = useCreaturePanel();
   const wanderOn = Boolean(creature) && !sleepy && spriteState !== "sick";
   const { x, flip } = useRailWander(wanderOn);
 
   if (!user || !creature) return null;
   const today = todayKey(user.timezone);
-  const progress = liveProgress(creature);
+  const progress = liveProgress(creature, todayGp);
   const union = liveUnion(creature, today);
   return (
     <aside className="flex h-dvh w-[16.5rem] shrink-0 flex-col border-l border-white/[0.06] bg-base px-5 py-6">
@@ -181,13 +183,7 @@ export function CreatureRail() {
         {creature.rareMutation ? ` · ${t("mutation.badge")}` : ""}
       </p>
       <div className="mt-5 space-y-3">
-        <div>
-          <div className="mb-1 flex justify-between text-[10px] text-faint">
-            <span>{t("widget.gpBar")}</span>
-            <span>{Math.round(progress.ratio * 100)}%</span>
-          </div>
-          <Progress value={progress.ratio * 100} />
-        </div>
+        <StageProgress progress={progress} />
         <p className="pixel-num text-[10px] text-pink">
           {t("widget.streak", { n: creature.currentStreak })}
         </p>

@@ -68,7 +68,8 @@ export default function HomePage() {
   const health = liveHealth(creature, score?.dcs ?? null);
   const sick = health.health === "sick";
   const fname = friendName(creature?.name);
-  const growth = liveProgress(creature);
+  const todayGp = score && !score.finalized ? score.gpEarned : 0;
+  const growth = liveProgress(creature, todayGp);
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8">

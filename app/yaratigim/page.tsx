@@ -14,6 +14,7 @@ import {
   useTodayBundle,
 } from "@/lib/store";
 import { CreatureView } from "@/components/creature/CreatureView";
+import { StageProgress } from "@/components/creature/StageProgress";
 import { Card } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/Progress";
 import { FriendRoom } from "@/components/creature/FriendRoom";
@@ -32,7 +33,8 @@ export default function CreaturePage() {
     );
   }
   const today = todayKey(user.timezone);
-  const progress = liveProgress(creature);
+  const todayGp = score && !score.finalized ? score.gpEarned : 0;
+  const progress = liveProgress(creature, todayGp);
   const union = liveUnion(creature, today);
   const sick = liveHealth(creature, score?.dcs ?? null).health === "sick";
 
@@ -68,20 +70,12 @@ export default function CreaturePage() {
           </div>
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Metric label={t("creature.gp")} value={creature.totalGp.toFixed(1)} />
+          <Metric label={t("creature.gp")} value={(creature.totalGp + todayGp).toFixed(1)} />
           <Metric label={t("home.streakNow")} value={creature.currentStreak} pixel />
           <Metric label={t("home.streakBest")} value={creature.longestStreak} />
         </div>
         <div className="mt-6">
-          <div className="mb-2 flex justify-between text-sm text-muted">
-            <span>{t("widget.gpBar")}</span>
-            <span>
-              {progress.next
-                ? `${stageLabel(progress.next)} · ${progress.need.toFixed(0)}`
-                : t("stage.elder")}
-            </span>
-          </div>
-          <Progress value={progress.ratio * 100} />
+          <StageProgress progress={progress} size="md" />
         </div>
       </Card>
 

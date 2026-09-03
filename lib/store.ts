@@ -1706,10 +1706,10 @@ export function liveUnion(creature: Creature | null, today: string) {
   );
 }
 
-export function liveProgress(creature: Creature | null) {
+export function liveProgress(creature: Creature | null, extraGp = 0) {
   if (!creature) return gpToNextStage(0, false);
   return gpToNextStage(
-    creature.totalGp,
+    creature.totalGp + Math.max(0, extraGp),
     Boolean(creature.hatchedAt) || creature.stage !== "egg",
   );
 }
