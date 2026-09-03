@@ -64,6 +64,7 @@ import {
   cloudMarkNoticesRead,
   cloudPublishCreature,
   cloudPullSocial,
+  cloudDeleteAccount,
   cloudSession,
   cloudSetOnboarded,
   cloudSignIn,
@@ -162,7 +163,7 @@ interface AppState {
   toggleMilestone: (id: string) => void;
   planHours: (title: string, hours: number, week: string[]) => void;
   flushOffline: () => void;
-  deleteAccount: () => void;
+  deleteAccount: () => Promise<{ ok: boolean; error?: string }>;
   updateTaskSeries: (
     id: string,
     patch: Partial<Pick<Task, "title" | "note" | "weight">>,
@@ -692,9 +693,11 @@ export const useApp = create<AppState>()(
         });
       },
       flushOffline: () => set({ offlineOps: [] }),
-      deleteAccount: () => {
+      deleteAccount: async () => {
         const user = currentUser(get());
-        if (!user) return;
+        if (!user) return { ok: false };
+        const cloud = await cloudDeleteAccount();
+        if (!cloud.ok) return cloud;
         set({
           users: get().users.filter((u) => u.id !== user.id),
           sessionUserId: null,
@@ -721,6 +724,7 @@ export const useApp = create<AppState>()(
           achievements: get().achievements.filter((a) => a.userId !== user.id),
           offlineOps: [],
         });
+        return { ok: true };
       },
       updateTaskSeries: (id, patch, scope) => {
         const source = get().tasks.find((x) => x.id === id);

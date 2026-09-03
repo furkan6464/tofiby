@@ -127,9 +127,13 @@ export default function SettingsPage() {
         <p className="text-xs text-muted">{t("data.deleteHint")}</p>
         <Button
           tone="danger"
-          onClick={() => {
+          onClick={async () => {
             if (!window.confirm(t("data.confirm"))) return;
-            wipe();
+            const res = await wipe();
+            if (!res.ok) {
+              window.alert(res.error ?? t("data.deleteCloudFail"));
+              return;
+            }
             router.push("/");
           }}
         >

@@ -299,3 +299,24 @@ drop policy if exists "own companions" on public.task_companions;
 create policy "own companions" on public.task_companions for all
   using (from_user = auth.uid() or to_user = auth.uid())
   with check (from_user = auth.uid() or to_user = auth.uid());
+
+create or replace function public.delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'not authenticated';
+  end if;
+  delete from public.pairs where user_a = uid or user_b = uid;
+  delete from public.profiles where id = uid;
+  delete from auth.users where id = uid;
+end;
+$$;
+
+revoke all on function public.delete_own_account() from public;
+grant execute on function public.delete_own_account() to authenticated;

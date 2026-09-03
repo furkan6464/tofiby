@@ -577,8 +577,9 @@
     "json": "JSON indir",
     "csv": "CSV indir",
     "delete": "Hesabımı sil",
-    "deleteHint": "Hesabını sildiğinde görevlerin, hedeflerin, skorların ve dostunun kaydı bu cihazda hemen silinir. Yedek yoksa geri alınamaz. Dış takvim verisi henüz tutulmuyor.",
-    "confirm": "Hesabı ve tüm yerel veriyi sil"
+    "deleteHint": "Hesabını sildiğinde görevlerin, hedeflerin, skorların, dostun ve giriş hesabın hem bu cihazdan hem sunucudan silinir. Geri alınamaz.",
+    "confirm": "Hesabı ve tüm veriyi sil",
+    "deleteCloudFail": "Sunucudaki hesap silinemedi. Supabase SQL Editor’da cloud.sql dosyasını bir kez daha çalıştır, sonra tekrar dene."
   },
   "remind": {
     "soon": "Bugün {task} yapacaktın.",

@@ -84,6 +84,15 @@ export async function cloudSignOut() {
   await sb()?.auth.signOut();
 }
 
+export async function cloudDeleteAccount(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const client = sb();
+  if (!client) return { ok: true };
+  const { error } = await client.rpc("delete_own_account");
+  if (error) return { ok: false, error: t("data.deleteCloudFail") };
+  await client.auth.signOut();
+  return { ok: true };
+}
+
 export async function cloudSession() {
   const client = sb();
   if (!client) return null;

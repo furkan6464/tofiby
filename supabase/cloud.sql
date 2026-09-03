@@ -83,3 +83,24 @@ create unique index if not exists friendships_unordered_pair
   on public.friendships (least(user_a, user_b), greatest(user_a, user_b));
 
 alter table public.creatures add column if not exists gender text not null default 'kiz';
+
+create or replace function public.delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'not authenticated';
+  end if;
+  delete from public.pairs where user_a = uid or user_b = uid;
+  delete from public.profiles where id = uid;
+  delete from auth.users where id = uid;
+end;
+$$;
+
+revoke all on function public.delete_own_account() from public;
+grant execute on function public.delete_own_account() to authenticated;
