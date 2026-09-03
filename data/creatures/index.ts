@@ -1,5 +1,5 @@
 import type { CreatureStage } from "@/lib/gameConfig";
-import type { SpeciesId } from "@/lib/types";
+import type { Genetics, SpeciesId } from "@/lib/types";
 import { EGG_FRAMES } from "./egg";
 import { PALETTES, tintPalette } from "./palettes";
 import { BULUT_STAGES } from "./bulut";
@@ -7,6 +7,7 @@ import { GIZEM_STAGES } from "./gizem";
 import { ISILTI_STAGES } from "./isilti";
 import { TOFIBY_STAGES } from "./tofiby";
 import { YILDIZ_STAGES } from "./yildiz";
+import { applyGenetics } from "./traits";
 import type { CreatureFrames, Palette } from "./types";
 
 const STAGES: Record<SpeciesId, Record<string, CreatureFrames>> = {
@@ -21,13 +22,12 @@ export function getCreatureArt(
   speciesId: SpeciesId,
   stage: CreatureStage,
   hueShift: number,
+  genetics?: Genetics | null,
 ): { frames: CreatureFrames; palette: Palette } {
-  const frames =
-    stage === "egg"
-      ? EGG_FRAMES[speciesId]
-      : STAGES[speciesId][stage];
+  const raw =
+    stage === "egg" ? EGG_FRAMES[speciesId] : STAGES[speciesId][stage];
   return {
-    frames,
+    frames: stage === "egg" ? raw : applyGenetics(raw, genetics),
     palette: tintPalette(PALETTES[speciesId], hueShift),
   };
 }

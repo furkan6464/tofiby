@@ -5,6 +5,7 @@ import {
   breedOffspring,
   circularHueMean,
   createRng,
+  inheritDiscrete,
   MUTATION_SPECIES,
 } from "./genetics";
 
@@ -23,6 +24,17 @@ describe("genetics", () => {
       at: "2027-03-01T00:00:00.000Z",
     });
     assert.deepEqual(a, b);
+  });
+
+  it("inherits each gene independently with a 10% mutation bucket", () => {
+    let mutated = 0;
+    const n = 4000;
+    for (let i = 0; i < n; i++) {
+      const rng = createRng(i + 1);
+      const g = inheritDiscrete("oval", "badem", ["yildiz"] as const, rng);
+      if (g.mutated) mutated += 1;
+    }
+    assert.ok(Math.abs(mutated / n - 0.1) < 0.03);
   });
 
   it("uses documented weighted chances over many rolls", () => {

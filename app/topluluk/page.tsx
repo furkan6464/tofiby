@@ -146,6 +146,7 @@ export default function CommunityPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <TogetherAsk friendId={otherId} />
                       {pair?.status === "bonded" ? (
                         <Button
                           tone="ghost"
@@ -211,5 +212,37 @@ export default function CommunityPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function TogetherAsk({ friendId }: { friendId: string }) {
+  const propose = useApp((s) => s.proposeTogether);
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  return (
+    <>
+      <Button tone="ghost" onClick={() => setOpen((v) => !v)}>
+        {t("together.ask")}
+      </Button>
+      {open ? (
+        <form
+          className="absolute mt-12 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            propose(friendId, title);
+            setTitle("");
+            setOpen(false);
+          }}
+        >
+          <input
+            className="w-40 px-2 py-1 text-sm"
+            placeholder={t("together.placeholder")}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Button type="submit">{t("common.add")}</Button>
+        </form>
+      ) : null}
+    </>
   );
 }

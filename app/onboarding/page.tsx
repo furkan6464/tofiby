@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, tList } from "@/lib/i18n";
 import { GOAL_COLORS } from "@/lib/goalColors";
+import { speciesHue } from "@/data/species/catalog";
 import { assignHiddenEggSpecies } from "@/lib/genetics";
 import { useApp } from "@/lib/store";
 import type { FrequencyPattern, SpeciesId } from "@/lib/types";
@@ -16,7 +17,10 @@ type Draft = {
   title: string;
   taskTitle: string;
   note: string;
+  startDate: string;
   targetDate: string;
+  weeklyFrequency: string;
+  dailyDurationMinutes: string;
   frequency: FrequencyPattern;
   color: string;
 };
@@ -25,12 +29,23 @@ const emptyGoal = (color: string): Draft => ({
   title: "",
   taskTitle: "",
   note: "",
+  startDate: "",
   targetDate: "",
+  weeklyFrequency: "5",
+  dailyDurationMinutes: "30",
   frequency: { kind: "daily" },
   color,
 });
 
 type Hidden = { speciesId: SpeciesId; hueShift: number };
+
+/** Onboarding slaytlarında yeni karakterleri tanıt — kullanıcının gizli türü yumurtada kalır. */
+const SHOWCASE: Partial<Record<CreatureStage, SpeciesId>> = {
+  baby: "tofiby",
+  child: "bulut",
+  teen: "yildiz",
+  adult: "gizem",
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -120,7 +135,7 @@ export default function OnboardingPage() {
             speciesId={hidden?.speciesId ?? "tofiby"}
             stage="egg"
             hueShift={hidden?.hueShift ?? 330}
-            pixelSize={18}
+            pixelSize={11}
           />
           <h1 className="mt-8 font-display text-5xl">
             {t("onboarding.eggReveal", { name: friend })}
@@ -140,8 +155,14 @@ export default function OnboardingPage() {
           stage={slides[step - 3].stage}
           title={slides[step - 3].title}
           body={slides[step - 3].body}
-          speciesId={hidden?.speciesId ?? "tofiby"}
-          hueShift={hidden?.hueShift ?? 330}
+          speciesId={
+            SHOWCASE[slides[step - 3].stage] ?? hidden?.speciesId ?? "tofiby"
+          }
+          hueShift={
+            SHOWCASE[slides[step - 3].stage]
+              ? speciesHue(SHOWCASE[slides[step - 3].stage]!)
+              : (hidden?.hueShift ?? 330)
+          }
           warn={step === 7}
           onBack={() => setStep(step - 1)}
           onNext={() => setStep(step + 1)}
@@ -166,12 +187,37 @@ export default function OnboardingPage() {
                 value={g.taskTitle}
                 onChange={(e) => patch(i, { taskTitle: e.target.value })}
               />
-              <Field
-                label={t("onboarding.goalDate")}
-                type="date"
-                value={g.targetDate}
-                onChange={(e) => patch(i, { targetDate: e.target.value })}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label={t("onboarding.startDate")}
+                  type="date"
+                  value={g.startDate}
+                  onChange={(e) => patch(i, { startDate: e.target.value })}
+                />
+                <Field
+                  label={t("onboarding.goalDate")}
+                  type="date"
+                  value={g.targetDate}
+                  onChange={(e) => patch(i, { targetDate: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label={t("onboarding.weeklyFreq")}
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={g.weeklyFrequency}
+                  onChange={(e) => patch(i, { weeklyFrequency: e.target.value })}
+                />
+                <Field
+                  label={t("onboarding.dailyMins")}
+                  type="number"
+                  min={5}
+                  value={g.dailyDurationMinutes}
+                  onChange={(e) => patch(i, { dailyDurationMinutes: e.target.value })}
+                />
+              </div>
               <div>
                 <p className="mb-2 text-sm text-muted">{t("onboarding.frequency")}</p>
                 <div className="flex flex-wrap gap-2">
@@ -268,7 +314,12 @@ export default function OnboardingPage() {
                   hueShift: hidden?.hueShift,
                   goals: goals.map((g) => ({
                     ...g,
+                    startDate: g.startDate || null,
                     targetDate: g.targetDate || null,
+                    weeklyFrequency: g.weeklyFrequency ? Number(g.weeklyFrequency) : null,
+                    dailyDurationMinutes: g.dailyDurationMinutes
+                      ? Number(g.dailyDurationMinutes)
+                      : 30,
                   })),
                 });
                 router.push("/anasayfa");
@@ -313,7 +364,7 @@ function Slide({
           speciesId={speciesId}
           stage={stage}
           hueShift={hueShift}
-          pixelSize={16}
+          pixelSize={10}
           state={stage === "baby" ? "sparkle" : "idle"}
         />
         {warn ? (
@@ -321,7 +372,7 @@ function Slide({
             speciesId={speciesId}
             stage="elder"
             hueShift={hueShift}
-            pixelSize={16}
+            pixelSize={10}
             state="sick"
           />
         ) : null}

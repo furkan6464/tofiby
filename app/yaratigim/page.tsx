@@ -16,6 +16,7 @@ import {
 import { CreatureView } from "@/components/creature/CreatureView";
 import { Card } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/Progress";
+import { FriendRoom } from "@/components/creature/FriendRoom";
 
 export default function CreaturePage() {
   const user = useSession();
@@ -36,7 +37,8 @@ export default function CreaturePage() {
             speciesId={creature.speciesId}
             stage={creature.stage}
             hueShift={creature.hueShift}
-            pixelSize={8}
+            genetics={creature.genetics}
+            pixelSize={5}
             state={sick ? "sick" : "idle"}
           />
           <div className="flex-1">
@@ -47,8 +49,13 @@ export default function CreaturePage() {
                 : speciesLabel(creature.speciesId)}{" "}
               · {stageLabel(creature.stage)}
             </p>
+            {creature.rareMutation ? (
+              <p className="mt-2 pixel-num text-[10px] text-pink">{t("mutation.badge")}</p>
+            ) : null}
             <p className="mt-4 text-xs text-faint">
               {t("creature.aliveSince", { date: prettyDate(creature.createdAt) })}
+              {" · "}
+              {t("family.gen", { n: creature.generation ?? 1 })}
             </p>
           </div>
         </div>
@@ -67,6 +74,14 @@ export default function CreaturePage() {
             </span>
           </div>
           <Progress value={progress.ratio * 100} />
+        </div>
+      </Card>
+
+      <Card className="mt-5 p-6">
+        <h2 className="font-display text-2xl">{t("room.title")}</h2>
+        <p className="mt-2 text-sm text-muted">{t("room.hint")}</p>
+        <div className="mt-4">
+          <FriendRoom creature={creature} items={creature.unlockedRoomItems} />
         </div>
       </Card>
 

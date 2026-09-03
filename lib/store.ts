@@ -15,32 +15,41 @@ import {
   scoreFromTasks,
   unionBarPct,
 } from "./growthEngine";
-import { assignHiddenEggSpecies, breedOffspring } from "./genetics";
+import { assignHiddenEggSpecies, breedOffspring, defaultGenetics, eggShellVariant } from "./genetics";
 import {
   addDays,
   canMutateTaskDate,
   detectTimezone,
   diffDays,
   todayKey,
+  weekdayOf,
 } from "./dates";
 import { enumerateDates, matchesFrequency } from "./frequency";
 import { hashPass, uid, validUsername } from "./ids";
 import { t } from "./i18n";
 import { celebrate } from "./confetti";
 import type {
+  BusySlot,
   Creature,
   DailyScore,
   FrequencyPattern,
   Friendship,
   Goal,
+  Milestone,
   Notice,
+  OfflineOp,
   OffspringLog,
   Pair,
   Poke,
+  SharedQuest,
   SpeciesId,
   Task,
+  UserAchievement,
   UserProfile,
 } from "./types";
+import { scheduleHours } from "./plan";
+import { evaluateAchievements, LETTER_MILESTONES } from "./achievements";
+import { isRestWeekday, roomUnlocks } from "./bond";
 
 interface Account extends UserProfile {
   passwordHash: string;
@@ -55,9 +64,13 @@ interface DraftGoal {
   title: string;
   taskTitle: string;
   note: string;
+  startDate?: string | null;
   targetDate: string | null;
+  weeklyFrequency?: number | null;
+  dailyDurationMinutes?: number | null;
   frequency: FrequencyPattern;
   color: string;
+  milestones?: { title: string; weight: number }[];
 }
 
 interface AppState {
@@ -66,16 +79,25 @@ interface AppState {
   sessionUserId: string | null;
   creatures: Creature[];
   goals: Goal[];
+  milestones: Milestone[];
   tasks: Task[];
+  busySlots: BusySlot[];
+  offlineOps: OfflineOp[];
   scores: DailyScore[];
   friendships: Friendship[];
   pairs: Pair[];
   pokes: Poke[];
   notices: Notice[];
   offspring: OffspringLog[];
+  sharedQuests: SharedQuest[];
+  achievements: UserAchievement[];
   toasts: Toast[];
-  widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick";
+  widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick" | "worried" | "yawn";
   pendingHatch: boolean;
+  pendingMutation: boolean;
+  pendingLetter: Creature["letters"][number] | null;
+  pendingTogether: boolean;
+  sessionWoke: boolean;
   setHydrated: (v: boolean) => void;
   register: (input: {
     username: string;
@@ -83,7 +105,7 @@ interface AppState {
     password: string;
   }) => { ok: true } | { ok: false; error: string };
   login: (
-    username: string,
+    identifier: string,
     password: string,
   ) => { ok: true } | { ok: false; error: string };
   logout: () => void;
@@ -101,10 +123,19 @@ interface AppState {
     title: string;
     note?: string;
     goalId?: string | null;
+    milestoneId?: string | null;
     weight?: number;
+    time?: string | null;
+    estimatedDurationMinutes?: number | null;
   }) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
-  moveTask: (id: string, date: string) => void;
+  moveTask: (id: string, date: string, time?: string | null) => void;
+  postponeTask: (id: string, toDate: string) => void;
+  addMilestone: (goalId: string, title: string, weight?: number) => void;
+  toggleMilestone: (id: string) => void;
+  planHours: (title: string, hours: number, week: string[]) => void;
+  flushOffline: () => void;
+  deleteAccount: () => void;
   updateTaskSeries: (
     id: string,
     patch: Partial<Pick<Task, "title" | "note" | "weight">>,
@@ -122,6 +153,11 @@ interface AppState {
   dismissToast: (id: string) => void;
   setWidgetAnim: (a: AppState["widgetAnim"]) => void;
   dismissHatch: () => void;
+  dismissMutation: () => void;
+  dismissLetter: () => void;
+  dismissTogether: () => void;
+  markWoke: () => void;
+  proposeTogether: (friendId: string, title: string) => { ok: boolean; error?: string };
 }
 
 function makeEgg(ownerId: string, name: string): Creature {
@@ -149,23 +185,82 @@ function makeEgg(ownerId: string, name: string): Creature {
     spouseOwnerId: null,
     spouseCreatureName: null,
     marriedAt: null,
+    parentAId: null,
+    parentBId: null,
+    generation: 1,
+    genetics: gene.genetics,
+    eggShellVariant: eggShellVariant(gene.speciesId, gene.hueShift),
+    rareMutation: false,
+    unlockedRoomItems: [],
+    letters: [],
   };
+}
+
+function hydrateTask(partial: Partial<Task> & Pick<Task, "id" | "userId" | "date" | "title">): Task {
+  return {
+    goalId: null,
+    milestoneId: null,
+    time: null,
+    description: "",
+    note: "",
+    estimatedDurationMinutes: null,
+    priority: "medium",
+    tag: null,
+    repeatPattern: null,
+    checklist: [],
+    reminderOffsetMinutes: 120,
+    postponedToDate: null,
+    weight: GAME_CONFIG.DEFAULT_TASK_WEIGHT,
+    completed: false,
+    completedAt: null,
+    ...partial,
+    status:
+      partial.status ??
+      (partial.completed ? "done" : "pending"),
+  };
+}
+
+function hydrateGoal(partial: Partial<Goal> & Pick<Goal, "id" | "userId" | "title">): Goal {
+  return {
+    note: "",
+    startDate: partial.createdAt ?? null,
+    targetDate: null,
+    weeklyFrequency: null,
+    dailyDurationMinutes: 30,
+    frequency: { kind: "daily" },
+    color: "#8F8CFF",
+    status: "active",
+    createdAt: new Date().toISOString().slice(0, 10),
+    ...partial,
+  };
+}
+
+function nextOffline(
+  ops: OfflineOp[],
+  kind: OfflineOp["kind"],
+  payload: Record<string, unknown>,
+): OfflineOp[] {
+  if (typeof navigator !== "undefined" && navigator.onLine) return ops;
+  return [
+    ...ops,
+    { id: uid(), kind, payload, createdAt: new Date().toISOString() },
+  ];
 }
 
 function generateTasks(goal: Goal, from: string, to: string): Task[] {
   return enumerateDates(from, to)
     .filter((date) => matchesFrequency(date, goal.frequency))
-    .map((date) => ({
-      id: uid(),
-      userId: goal.userId,
-      goalId: goal.id,
-      date,
-      title: goal.title,
-      note: goal.note,
-      weight: GAME_CONFIG.DEFAULT_TASK_WEIGHT,
-      completed: false,
-      completedAt: null,
-    }));
+    .map((date) =>
+      hydrateTask({
+        id: uid(),
+        userId: goal.userId,
+        goalId: goal.id,
+        date,
+        title: goal.title,
+        note: goal.note,
+        estimatedDurationMinutes: goal.dailyDurationMinutes,
+      }),
+    );
 }
 
 export const useApp = create<AppState>()(
@@ -176,16 +271,25 @@ export const useApp = create<AppState>()(
       sessionUserId: null,
       creatures: [],
       goals: [],
+      milestones: [],
       tasks: [],
+      busySlots: [],
+      offlineOps: [],
       scores: [],
       friendships: [],
       pairs: [],
       pokes: [],
       notices: [],
       offspring: [],
+      sharedQuests: [],
+      achievements: [],
       toasts: [],
       widgetAnim: "idle",
       pendingHatch: false,
+      pendingMutation: false,
+      pendingLetter: null,
+      pendingTogether: false,
+      sessionWoke: false,
       setHydrated: (v) => set({ hydrated: v }),
       register: ({ username, email, password }) => {
         if (!validUsername(username)) return { ok: false, error: t("auth.errorUser") };
@@ -206,14 +310,21 @@ export const useApp = create<AppState>()(
           theme: "ink",
           notifyPoke: true,
           notifyEvolution: true,
+          restDayOfWeek: null,
+          preferredWindow: null,
+          yearWrapSeen: null,
+          weeklyReviewSeen: null,
+          softDayCaps: {},
           passwordHash: hashPass(password),
         };
         set({ users: [...get().users, user], sessionUserId: user.id });
         return { ok: true };
       },
-      login: (username, password) => {
+      login: (identifier, password) => {
+        const key = identifier.trim().toLowerCase();
         const user = get().users.find(
-          (u) => u.username.toLowerCase() === username.toLowerCase(),
+          (u) =>
+            u.username.toLowerCase() === key || u.email.toLowerCase() === key,
         );
         if (!user || user.passwordHash !== hashPass(password)) {
           return { ok: false, error: t("auth.errorCreds") };
@@ -228,8 +339,16 @@ export const useApp = create<AppState>()(
         const today = todayKey(user.timezone);
         const horizon = addDays(today, GAME_CONFIG.TASK_HORIZON_DAYS);
         const creature = makeEgg(user.id, creatureName.trim() || t("creature.unnamed"));
-        if (speciesId) creature.speciesId = speciesId;
-        if (typeof hueShift === "number") creature.hueShift = hueShift;
+        if (speciesId) {
+          creature.speciesId = speciesId;
+          creature.genetics = defaultGenetics(speciesId, creature.hueShift, [user.id, creature.id]);
+          creature.eggShellVariant = eggShellVariant(speciesId, creature.hueShift);
+        }
+        if (typeof hueShift === "number") {
+          creature.hueShift = hueShift;
+          creature.genetics = { ...creature.genetics, hueShift };
+          creature.eggShellVariant = eggShellVariant(creature.speciesId, hueShift);
+        }
         const goals: Goal[] = [];
         const tasks: Task[] = [];
         for (const d of drafts) {
@@ -239,7 +358,10 @@ export const useApp = create<AppState>()(
             userId: user.id,
             title: d.title.trim(),
             note: d.note,
+            startDate: d.startDate ?? today,
             targetDate: d.targetDate,
+            weeklyFrequency: d.weeklyFrequency ?? null,
+            dailyDurationMinutes: d.dailyDurationMinutes ?? 30,
             frequency: d.frequency,
             color: d.color,
             status: "active",
@@ -273,7 +395,10 @@ export const useApp = create<AppState>()(
           userId: user.id,
           title: draft.title.trim(),
           note: draft.note,
+          startDate: draft.startDate ?? today,
           targetDate: draft.targetDate,
+          weeklyFrequency: draft.weeklyFrequency ?? null,
+          dailyDurationMinutes: draft.dailyDurationMinutes ?? 30,
           frequency: draft.frequency,
           color: draft.color,
           status: "active",
@@ -285,8 +410,17 @@ export const useApp = create<AppState>()(
           ...task,
           title: draft.taskTitle.trim() || draft.title.trim(),
         }));
+        const stones: Milestone[] = (draft.milestones ?? []).map((m, i) => ({
+          id: uid(),
+          goalId: goal.id,
+          title: m.title,
+          orderIndex: i,
+          weight: m.weight || 1,
+          completedAt: null,
+        }));
         set({
           goals: [...get().goals, goal],
+          milestones: [...get().milestones, ...stones],
           tasks: [...get().tasks, ...extra],
         });
       },
@@ -302,39 +436,155 @@ export const useApp = create<AppState>()(
           ),
         });
       },
-      addTask: ({ date, title, note, goalId, weight }) => {
+      addTask: ({ date, title, note, goalId, milestoneId, weight, time, estimatedDurationMinutes }) => {
         const user = currentUser(get());
         if (!user) return;
+        const created = hydrateTask({
+          id: uid(),
+          userId: user.id,
+          goalId: goalId ?? null,
+          milestoneId: milestoneId ?? null,
+          date,
+          time: time ?? null,
+          title: title.trim(),
+          note: note ?? "",
+          weight: weight ?? GAME_CONFIG.DEFAULT_TASK_WEIGHT,
+          estimatedDurationMinutes: estimatedDurationMinutes ?? null,
+        });
         set({
-          tasks: [
-            ...get().tasks,
-            {
-              id: uid(),
-              userId: user.id,
-              goalId: goalId ?? null,
-              date,
-              title: title.trim(),
-              note: note ?? "",
-              weight: weight ?? GAME_CONFIG.DEFAULT_TASK_WEIGHT,
-              completed: false,
-              completedAt: null,
-            },
-          ],
+          tasks: [...get().tasks, created],
+          offlineOps: nextOffline(get().offlineOps, "add", { id: created.id, date, title }),
         });
       },
       updateTask: (id, patch) => {
         set({
           tasks: get().tasks.map((task) =>
-            task.id === id ? { ...task, ...patch } : task,
+            task.id === id
+              ? {
+                  ...task,
+                  ...patch,
+                  completed:
+                    patch.status === "done"
+                      ? true
+                      : patch.status === "pending" || patch.status === "postponed"
+                        ? false
+                        : (patch.completed ?? task.completed),
+                }
+              : task,
           ),
+          offlineOps: nextOffline(get().offlineOps, "update", { id, ...patch }),
         });
       },
-      moveTask: (id, date) => {
+      moveTask: (id, date, time) => {
         const user = currentUser(get());
         if (!user) return;
         if (!canMutateTaskDate(date, user.timezone) && date < todayKey(user.timezone)) return;
         set({
-          tasks: get().tasks.map((task) => (task.id === id ? { ...task, date } : task)),
+          tasks: get().tasks.map((task) =>
+            task.id === id
+              ? { ...task, date, time: time !== undefined ? time : task.time, status: "pending" }
+              : task,
+          ),
+          offlineOps: nextOffline(get().offlineOps, "move", { id, date, time }),
+        });
+      },
+      postponeTask: (id, toDate) => {
+        const user = currentUser(get());
+        if (!user) return;
+        set({
+          tasks: get().tasks.map((task) =>
+            task.id === id
+              ? {
+                  ...task,
+                  date: toDate,
+                  postponedToDate: toDate,
+                  status: "pending",
+                  completed: false,
+                  completedAt: null,
+                }
+              : task,
+          ),
+          offlineOps: nextOffline(get().offlineOps, "postpone", { id, toDate }),
+        });
+      },
+      addMilestone: (goalId, title, weight = 1) => {
+        const list = get().milestones.filter((m) => m.goalId === goalId);
+        set({
+          milestones: [
+            ...get().milestones,
+            {
+              id: uid(),
+              goalId,
+              title: title.trim(),
+              orderIndex: list.length,
+              weight,
+              completedAt: null,
+            },
+          ],
+        });
+      },
+      toggleMilestone: (id) => {
+        set({
+          milestones: get().milestones.map((m) =>
+            m.id === id
+              ? { ...m, completedAt: m.completedAt ? null : new Date().toISOString() }
+              : m,
+          ),
+        });
+      },
+      planHours: (title, hours, week) => {
+        const user = currentUser(get());
+        if (!user) return;
+        const slots = scheduleHours({
+          hours,
+          title,
+          week,
+          tasks: get().tasks,
+          busy: get().busySlots,
+          userId: user.id,
+        });
+        set({
+          tasks: [
+            ...get().tasks,
+            ...slots.map((s) =>
+              hydrateTask({
+                id: uid(),
+                userId: user.id,
+                date: s.date,
+                time: s.time,
+                title,
+                estimatedDurationMinutes: s.minutes,
+              }),
+            ),
+          ],
+        });
+      },
+      flushOffline: () => set({ offlineOps: [] }),
+      deleteAccount: () => {
+        const user = currentUser(get());
+        if (!user) return;
+        set({
+          users: get().users.filter((u) => u.id !== user.id),
+          sessionUserId: null,
+          creatures: get().creatures.filter((c) => c.ownerId !== user.id),
+          goals: get().goals.filter((g) => g.userId !== user.id),
+          milestones: get().milestones.filter((m) =>
+            get().goals.some((g) => g.id === m.goalId && g.userId !== user.id),
+          ),
+          tasks: get().tasks.filter((x) => x.userId !== user.id),
+          busySlots: get().busySlots.filter((b) => b.userId !== user.id),
+          scores: get().scores.filter((s) => s.userId !== user.id),
+          friendships: get().friendships.filter(
+            (f) => f.userA !== user.id && f.userB !== user.id,
+          ),
+          pairs: get().pairs.filter((p) => p.userA !== user.id && p.userB !== user.id),
+          pokes: get().pokes.filter((p) => p.fromUser !== user.id && p.toUser !== user.id),
+          notices: get().notices.filter((n) => n.userId !== user.id),
+          sharedQuests: get().sharedQuests.filter(
+            (q) => q.fromUser !== user.id && q.toUser !== user.id,
+          ),
+          achievements: get().achievements.filter((a) => a.userId !== user.id),
+          offlineOps: [],
         });
       },
       updateTaskSeries: (id, patch, scope) => {
@@ -372,48 +622,66 @@ export const useApp = create<AppState>()(
         if (!canMutateTaskDate(task.date, user.timezone)) {
           return { streakJustHit: false, closed: true, hatched: false };
         }
+        const rest = isRestWeekday(task.date, user.restDayOfWeek ?? null);
         const todayTasks = get().tasks.filter(
           (x) => x.userId === user.id && x.date === task.date,
         );
-        const dcsBefore = dailyCompletionScore(todayTasks);
+        const dcsBefore = rest ? null : dailyCompletionScore(todayTasks);
         const nextTasks = get().tasks.map((x) =>
           x.id === id
             ? {
                 ...x,
                 completed: !x.completed,
                 completedAt: !x.completed ? new Date().toISOString() : null,
+                status: !x.completed ? ("done" as const) : ("pending" as const),
               }
             : x,
         );
-        const dcsAfter = dailyCompletionScore(
-          nextTasks.filter((x) => x.userId === user.id && x.date === task.date),
-        );
-        const streakJustHit = !isStreakDay(dcsBefore) && isStreakDay(dcsAfter);
+        set({ offlineOps: nextOffline(get().offlineOps, "toggle", { id }) });
+        const dcsAfter = rest
+          ? null
+          : dailyCompletionScore(
+              nextTasks.filter((x) => x.userId === user.id && x.date === task.date),
+            );
+        const streakJustHit = !rest && !isStreakDay(dcsBefore) && isStreakDay(dcsAfter);
         const mine = get().creatures.find(
           (c) => c.ownerId === user.id && c.status === "active",
         );
         let creatures = get().creatures;
         let pendingHatch = get().pendingHatch;
+        let pendingMutation = get().pendingMutation;
         let hatched = false;
         if (streakJustHit && mine && !mine.hatchedAt && mine.stage === "egg") {
-          const now = new Date().toISOString();
+          const iso = new Date().toISOString();
           creatures = creatures.map((c) =>
             c.id === mine.id
               ? {
                   ...c,
                   stage: "baby" as const,
-                  hatchedAt: now,
+                  hatchedAt: iso,
                   currentStreak: Math.max(1, c.currentStreak),
                 }
               : c,
           );
           pendingHatch = true;
+          if (mine.rareMutation) pendingMutation = true;
           hatched = true;
+        }
+        const quest = get().sharedQuests.find(
+          (q) => q.taskAId === id || q.taskBId === id,
+        );
+        let pendingTogether = get().pendingTogether;
+        if (quest && !task.completed) {
+          const a = nextTasks.find((x) => x.id === quest.taskAId);
+          const b = nextTasks.find((x) => x.id === quest.taskBId);
+          if (a?.completed && b?.completed) pendingTogether = true;
         }
         set({
           tasks: nextTasks,
           creatures,
           pendingHatch,
+          pendingMutation,
+          pendingTogether,
           widgetAnim: hatched
             ? "happy"
             : streakJustHit
@@ -442,12 +710,19 @@ export const useApp = create<AppState>()(
         );
         const offspring = [...get().offspring];
         let pendingHatch = get().pendingHatch;
+        let pendingMutation = get().pendingMutation;
+        let pendingLetter = get().pendingLetter;
+        let widgetAnim = get().widgetAnim;
+        let justRecovered = false;
+        let streakBroke = false;
+        const achievements = [...get().achievements];
 
         const first = creature.createdAt;
         for (let d = first; d < today; d = addDays(d, 1)) {
           if (scores.some((s) => s.userId === user.id && s.date === d && s.finalized)) {
             continue;
           }
+          const rest = isRestWeekday(d, user.restDayOfWeek ?? null);
           const dayTasks = get().tasks.filter(
             (x) => x.userId === user.id && x.date === d,
           );
@@ -457,7 +732,10 @@ export const useApp = create<AppState>()(
             dayTasks,
             creature.currentStreak,
             creature.health === "sick",
+            rest,
           );
+          const prevHealth = creature.health;
+          const prevStreak = creature.currentStreak;
           const applied = applyDayFinalization({
             currentStreak: creature.currentStreak,
             longestStreak: creature.longestStreak,
@@ -467,8 +745,24 @@ export const useApp = create<AppState>()(
             health: creature.health,
             consecutiveZeroDays: creature.consecutiveZeroDays,
             recoveryStreak: creature.recoveryStreak,
+            isRestDay: rest,
           });
           const prevStage = creature.stage;
+          if (prevHealth === "sick" && applied.health === "active") justRecovered = true;
+          if (!rest && prevStreak > 0 && applied.currentStreak === 0) {
+            streakBroke = true;
+            widgetAnim = "worried";
+            notices.push({
+              id: uid(),
+              userId: user.id,
+              kind: "streak",
+              title: t("toast.streakPaused"),
+              body: t("toast.streakPaused"),
+              read: false,
+              createdAt: `${d}T00:00:00.000Z`,
+              href: "/anasayfa",
+            });
+          }
           creature = {
             ...creature,
             currentStreak: applied.currentStreak,
@@ -484,6 +778,7 @@ export const useApp = create<AppState>()(
           };
           if (applied.justHatched && d >= addDays(today, -1)) {
             pendingHatch = true;
+            if (creature.rareMutation) pendingMutation = true;
           }
           if (
             applied.stage !== prevStage &&
@@ -561,11 +856,12 @@ export const useApp = create<AppState>()(
           }
           const bornAt = new Date().toISOString();
           const child = breedOffspring({
-            parentA: { speciesId: a.speciesId, hueShift: a.hueShift },
-            parentB: { speciesId: b.speciesId, hueShift: b.hueShift },
+            parentA: { speciesId: a.speciesId, hueShift: a.hueShift, genetics: a.genetics },
+            parentB: { speciesId: b.speciesId, hueShift: b.hueShift, genetics: b.genetics },
             pairId: pair.id,
             at: bornAt,
           });
+          const gen = Math.max(a.generation ?? 1, b.generation ?? 1) + 1;
           const retire = (c: Creature, spouse: Creature): Creature => ({
             ...c,
             status: "retired",
@@ -574,11 +870,20 @@ export const useApp = create<AppState>()(
             spouseCreatureName: spouse.name,
             marriedAt: bornAt,
           });
-          const eggFor = (ownerId: string, parentName: string): Creature => ({
-            ...makeEgg(ownerId, parentName),
-            speciesId: child.speciesId,
-            hueShift: child.hueShift,
-          });
+          const eggFor = (ownerId: string, parentName: string): Creature => {
+            const egg = makeEgg(ownerId, parentName);
+            return {
+              ...egg,
+              speciesId: child.speciesId,
+              hueShift: child.hueShift,
+              genetics: child.genetics,
+              parentAId: a.id,
+              parentBId: b.id,
+              generation: gen,
+              rareMutation: child.mutated,
+              eggShellVariant: eggShellVariant(child.speciesId, child.hueShift),
+            };
+          };
           creatures = creatures
             .map((c) => {
               if (c.id === a.id) return retire(c, b);
@@ -597,6 +902,7 @@ export const useApp = create<AppState>()(
             resultingSpeciesId: child.speciesId,
             resultingHue: child.hueShift,
             createdAt: bornAt,
+            mutated: child.mutated,
           });
           notices.push({
             id: uid(),
@@ -621,7 +927,73 @@ export const useApp = create<AppState>()(
           celebrate("marry");
         }
 
-        set({ creatures, scores, notices, pairs, offspring, pendingHatch });
+        let active =
+          creatures.find((c) => c.ownerId === user.id && c.status === "active") ?? creature;
+        const born = active.hatchedAt?.slice(0, 10) ?? active.createdAt;
+        const age = Math.max(0, diffDays(born, today));
+        for (const ms of LETTER_MILESTONES) {
+          if (age >= ms && !active.letters.some((l) => l.milestone === ms)) {
+            const letter = { milestone: ms, at: new Date().toISOString() } as const;
+            active = { ...active, letters: [...active.letters, letter] };
+            pendingLetter = letter;
+            notices.push({
+              id: uid(),
+              userId: user.id,
+              kind: "letter",
+              title: t("letter.toast", { n: ms }),
+              body: t("letter.toast", { n: ms }),
+              read: false,
+              createdAt: letter.at,
+              href: "/profil",
+            });
+          }
+        }
+        const fresh = evaluateAchievements({
+          userId: user.id,
+          creature: active,
+          scores,
+          pairs,
+          justRecovered,
+          already: achievements,
+          now: new Date().toISOString(),
+        });
+        const hiddenUnlocked = fresh.some((a) => a.achievementId !== "first_step");
+        const items = roomUnlocks({
+          creature: active,
+          scores,
+          hasHiddenAchievement:
+            hiddenUnlocked ||
+            achievements.some(
+              (a) => a.userId === user.id && a.achievementId !== "first_step",
+            ),
+          married: Boolean(active.marriedAt) || pairs.some((p) => p.status === "married"),
+        });
+        active = { ...active, unlockedRoomItems: items };
+        creatures = creatures.map((c) => (c.id === active.id ? active : c));
+        for (const a of fresh) {
+          notices.push({
+            id: uid(),
+            userId: user.id,
+            kind: "achievement",
+            title: t(`achieve.${a.achievementId}.name`),
+            body: t(`achieve.${a.achievementId}.name`),
+            read: false,
+            createdAt: a.unlockedAt,
+            href: "/profil",
+          });
+        }
+        set({
+          creatures,
+          scores,
+          notices,
+          pairs,
+          offspring,
+          pendingHatch,
+          pendingMutation,
+          pendingLetter,
+          achievements: [...achievements, ...fresh],
+          widgetAnim: streakBroke ? "worried" : widgetAnim,
+        });
       },
       updateSettings: (patch) => {
         const user = currentUser(get());
@@ -791,17 +1163,82 @@ export const useApp = create<AppState>()(
         set({ toasts: get().toasts.filter((x) => x.id !== id) }),
       setWidgetAnim: (a) => set({ widgetAnim: a }),
       dismissHatch: () => set({ pendingHatch: false }),
+      dismissMutation: () => set({ pendingMutation: false }),
+      dismissLetter: () => set({ pendingLetter: null }),
+      dismissTogether: () => set({ pendingTogether: false }),
+      markWoke: () => set({ sessionWoke: true, widgetAnim: "idle" }),
+      proposeTogether: (friendId, title) => {
+        const user = currentUser(get());
+        if (!user) return { ok: false };
+        const trimmed = title.trim();
+        if (!trimmed) return { ok: false };
+        const friendship = get().friendships.find(
+          (f) =>
+            f.status === "accepted" &&
+            ((f.userA === user.id && f.userB === friendId) ||
+              (f.userB === user.id && f.userA === friendId)),
+        );
+        if (!friendship) return { ok: false, error: t("community.empty") };
+        const today = todayKey(user.timezone);
+        const exists = get().sharedQuests.some(
+          (q) =>
+            q.date === today &&
+            ((q.fromUser === user.id && q.toUser === friendId) ||
+              (q.toUser === user.id && q.fromUser === friendId)),
+        );
+        if (exists) return { ok: false, error: t("together.exists") };
+        const taskA: Task = hydrateTask({
+          id: uid(),
+          userId: user.id,
+          goalId: null,
+          date: today,
+          title: trimmed,
+          note: t("together.note"),
+        });
+        const taskB: Task = {
+          ...taskA,
+          id: uid(),
+          userId: friendId,
+        };
+        const quest: SharedQuest = {
+          id: uid(),
+          fromUser: user.id,
+          toUser: friendId,
+          date: today,
+          title: trimmed,
+          taskAId: taskA.id,
+          taskBId: taskB.id,
+        };
+        set({
+          tasks: [...get().tasks, taskA, taskB],
+          sharedQuests: [...get().sharedQuests, quest],
+        });
+        return { ok: true };
+      },
     }),
     {
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 2,
+      version: 4,
       migrate: (persisted) => {
-        const p = persisted as { creatures?: Creature[] } & Record<string, unknown>;
+        const p = persisted as {
+          creatures?: Creature[];
+          users?: Account[];
+          goals?: Goal[];
+          tasks?: Task[];
+        } & Record<string, unknown>;
         return {
           ...p,
           creatures: (p.creatures ?? []).map((c) => normalizeCreature(c)),
+          users: (p.users ?? []).map((u) => normalizeUser(u)),
+          goals: (p.goals ?? []).map((g) => hydrateGoal(g)),
+          tasks: (p.tasks ?? []).map((task) => hydrateTask(task)),
+          milestones: p.milestones ?? [],
+          busySlots: p.busySlots ?? [],
+          offlineOps: p.offlineOps ?? [],
+          sharedQuests: p.sharedQuests ?? [],
+          achievements: p.achievements ?? [],
         };
       },
       partialize: (s) => ({
@@ -809,13 +1246,18 @@ export const useApp = create<AppState>()(
         sessionUserId: s.sessionUserId,
         creatures: s.creatures,
         goals: s.goals,
+        milestones: s.milestones,
         tasks: s.tasks,
+        busySlots: s.busySlots,
+        offlineOps: s.offlineOps,
         scores: s.scores,
         friendships: s.friendships,
         pairs: s.pairs,
         pokes: s.pokes,
         notices: s.notices,
         offspring: s.offspring,
+        sharedQuests: s.sharedQuests,
+        achievements: s.achievements,
       }),
     },
   ),
@@ -825,13 +1267,33 @@ function currentUser(state: AppState): Account | undefined {
   return state.users.find((u) => u.id === state.sessionUserId);
 }
 
+function normalizeUser(u: Account): Account {
+  return {
+    ...u,
+    restDayOfWeek: u.restDayOfWeek ?? null,
+    preferredWindow: u.preferredWindow ?? null,
+    yearWrapSeen: u.yearWrapSeen ?? null,
+    weeklyReviewSeen: u.weeklyReviewSeen ?? null,
+    softDayCaps: u.softDayCaps ?? {},
+  };
+}
+
 function normalizeCreature(c: Creature): Creature {
+  const hue = c.hueShift ?? 330;
   return {
     ...c,
     hatchedAt: c.hatchedAt ?? (c.stage !== "egg" ? c.createdAt : null),
     health: c.health ?? "active",
     consecutiveZeroDays: c.consecutiveZeroDays ?? 0,
     recoveryStreak: c.recoveryStreak ?? 0,
+    parentAId: c.parentAId ?? null,
+    parentBId: c.parentBId ?? null,
+    generation: c.generation ?? 1,
+    genetics: c.genetics ?? defaultGenetics(c.speciesId, hue, [c.id, c.createdAt]),
+    eggShellVariant: c.eggShellVariant ?? eggShellVariant(c.speciesId, hue),
+    rareMutation: c.rareMutation ?? false,
+    unlockedRoomItems: c.unlockedRoomItems ?? [],
+    letters: c.letters ?? [],
   };
 }
 
@@ -850,12 +1312,14 @@ export function useTodayBundle() {
   const user = useSession();
   const tasks = useApp((s) => s.tasks);
   const creature = useActiveCreature();
-  if (!user) return { user: null, tasks: [], score: null, creature: null };
+  if (!user) return { user: null, tasks: [], score: null, creature: null, rest: false };
   const date = todayKey(user.timezone);
+  const rest = isRestWeekday(date, user.restDayOfWeek ?? null);
   const todayTasks = tasks.filter((t) => t.userId === user.id && t.date === date);
   return {
     user,
     date,
+    rest,
     tasks: todayTasks,
     score: scoreFromTasks(
       user.id,
@@ -863,6 +1327,7 @@ export function useTodayBundle() {
       todayTasks,
       creature?.currentStreak ?? 0,
       creature?.health === "sick",
+      rest,
     ),
     creature,
   };

@@ -125,6 +125,11 @@ export function addMonths(dateKey: string, months: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
+export function weekdayLabel(weekday: number): string {
+  const fallback = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
+  return fallback[weekday] ?? "";
+}
+
 export function shortDate(dateKey: string, locale = "tr-TR"): string {
   const [y, m, d] = dateKey.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {

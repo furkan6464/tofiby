@@ -28,6 +28,7 @@ export function makeAnims(base: PixelFrame): CreatureFrames {
     sick: [withSick(base)],
     sparkle: [sparkle, extraSparkle(sparkle), sparkle],
     crack: [base],
+    worried: [halfEyes(base)],
   };
 }
 
@@ -45,5 +46,6 @@ export function makeEggAnims(base: PixelFrame, cracks: PixelFrame[] = []): Creat
     sick: [base],
     sparkle: [base],
     crack: cracks.length ? cracks : [base],
+    worried: [base],
   };
 }

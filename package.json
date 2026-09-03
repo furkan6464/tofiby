@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test lib/growthEngine.test.ts lib/genetics.test.ts"
+    "test": "tsx --test lib/growthEngine.test.ts lib/genetics.test.ts lib/enough.test.ts lib/plan.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

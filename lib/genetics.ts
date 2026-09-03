@@ -1,8 +1,33 @@
 import { GAME_CONFIG } from "./gameConfig";
-import type { SpeciesId } from "./types";
+import { mutationSpecies, speciesHue, starterSpecies } from "@/data/species/catalog";
+import type {
+  Accessory,
+  EarForm,
+  EyeShape,
+  Genetics,
+  MicroAnim,
+  SignatureDetail,
+  SpeciesId,
+} from "./types";
 
-export const BASE_SPECIES: SpeciesId[] = ["tofiby", "bulut", "yildiz", "gizem"];
-export const MUTATION_SPECIES: SpeciesId = "isilti";
+export const BASE_SPECIES: SpeciesId[] = starterSpecies();
+export const MUTATION_SPECIES: SpeciesId = mutationSpecies();
+
+export const EYE_SHAPES: EyeShape[] = ["oval", "yuvarlak", "badem", "yildiz"];
+export const EAR_FORMS: EarForm[] = ["sivri", "yuvarlak", "dusuk", "antenli"];
+export const SIGNATURES: SignatureDetail[] = [
+  "kalp_yanak",
+  "yildiz_parilti",
+  "minik_boynuz",
+  "none",
+];
+export const MICRO_ANIMS: MicroAnim[] = [
+  "cift_kirpma",
+  "minik_donus",
+  "kuyruk_sallama",
+  "none",
+];
+export const ACCESSORIES: Accessory[] = ["none", "fiyonk", "yildiz_cikartma", "cil"];
 
 export interface Rng {
   next(): number;
@@ -31,13 +56,19 @@ export function seedFrom(parts: string[]): number {
   return h >>> 0;
 }
 
-function pickSpecies(parentA: SpeciesId, parentB: SpeciesId, rng: Rng): SpeciesId {
+export function inheritDiscrete<T>(a: T, b: T, pool: readonly T[], rng: Rng): {
+  value: T;
+  mutated: boolean;
+} {
   const roll = rng.next();
-  const aChance = GAME_CONFIG.GENETICS_PARENT_SPECIES_CHANCE;
-  const bChance = GAME_CONFIG.GENETICS_PARENT_SPECIES_CHANCE;
-  if (roll < aChance) return parentA;
-  if (roll < aChance + bChance) return parentB;
-  return MUTATION_SPECIES;
+  if (roll < GAME_CONFIG.GENETICS_PARENT_SPECIES_CHANCE) {
+    return { value: a, mutated: false };
+  }
+  if (roll < GAME_CONFIG.GENETICS_PARENT_SPECIES_CHANCE * 2) {
+    return { value: b, mutated: false };
+  }
+  const pick = pool[Math.floor(rng.next() * pool.length)] ?? a;
+  return { value: pick, mutated: true };
 }
 
 export function circularHueMean(a: number, b: number): number {
@@ -56,36 +87,132 @@ export function inheritHue(hueA: number, hueB: number, rng: Rng): number {
   return (mean + jitter + 360) % 360;
 }
 
+export function speciesDefaults(speciesId: SpeciesId): Omit<Genetics, "hueShift"> {
+  if (speciesId === "tofiby") {
+    return {
+      eyeShape: "oval",
+      earForm: "sivri",
+      signature: "kalp_yanak",
+      microAnim: "cift_kirpma",
+      accessory: "none",
+    };
+  }
+  if (speciesId === "bulut") {
+    return {
+      eyeShape: "yuvarlak",
+      earForm: "yuvarlak",
+      signature: "none",
+      microAnim: "minik_donus",
+      accessory: "none",
+    };
+  }
+  if (speciesId === "yildiz") {
+    return {
+      eyeShape: "yildiz",
+      earForm: "antenli",
+      signature: "yildiz_parilti",
+      microAnim: "kuyruk_sallama",
+      accessory: "yildiz_cikartma",
+    };
+  }
+  if (speciesId === "gizem") {
+    return {
+      eyeShape: "badem",
+      earForm: "dusuk",
+      signature: "none",
+      microAnim: "none",
+      accessory: "cil",
+    };
+  }
+  return {
+    eyeShape: "yildiz",
+    earForm: "antenli",
+    signature: "yildiz_parilti",
+    microAnim: "minik_donus",
+    accessory: "fiyonk",
+  };
+}
+
+export function eggShellVariant(speciesId: SpeciesId, hueShift: number): string {
+  return `${speciesId}-${Math.round(hueShift / 15) * 15}`;
+}
+
+export function defaultGenetics(
+  speciesId: SpeciesId,
+  hueShift: number,
+  seedParts: string[],
+): Genetics {
+  const rng = createRng(seedFrom([...seedParts, "traits"]));
+  const base = speciesDefaults(speciesId);
+  const accessory =
+    rng.next() < 0.12
+      ? ACCESSORIES[1 + Math.floor(rng.next() * (ACCESSORIES.length - 1))]
+      : base.accessory;
+  return { ...base, accessory, hueShift };
+}
+
 export function breedOffspring(input: {
-  parentA: { speciesId: SpeciesId; hueShift: number };
-  parentB: { speciesId: SpeciesId; hueShift: number };
+  parentA: { speciesId: SpeciesId; hueShift: number; genetics?: Genetics };
+  parentB: { speciesId: SpeciesId; hueShift: number; genetics?: Genetics };
   pairId: string;
   at: string;
-}): { speciesId: SpeciesId; hueShift: number } {
+}): {
+  speciesId: SpeciesId;
+  hueShift: number;
+  genetics: Genetics;
+  mutated: boolean;
+} {
   const rng = createRng(seedFrom([input.pairId, input.at, "offspring"]));
+  const species = inheritDiscrete(
+    input.parentA.speciesId,
+    input.parentB.speciesId,
+    [MUTATION_SPECIES],
+    rng,
+  );
+  const speciesId = species.mutated ? MUTATION_SPECIES : species.value;
+  const ga = input.parentA.genetics ?? speciesDefaults(input.parentA.speciesId);
+  const gb = input.parentB.genetics ?? speciesDefaults(input.parentB.speciesId);
+  const eye = inheritDiscrete(ga.eyeShape, gb.eyeShape, EYE_SHAPES, rng);
+  const ear = inheritDiscrete(ga.earForm, gb.earForm, EAR_FORMS, rng);
+  const sig = inheritDiscrete(ga.signature, gb.signature, SIGNATURES, rng);
+  const micro = inheritDiscrete(ga.microAnim, gb.microAnim, MICRO_ANIMS, rng);
+  const acc = inheritDiscrete(ga.accessory, gb.accessory, ACCESSORIES, rng);
+  const hueShift = inheritHue(input.parentA.hueShift, input.parentB.hueShift, rng);
   return {
-    speciesId: pickSpecies(input.parentA.speciesId, input.parentB.speciesId, rng),
-    hueShift: inheritHue(input.parentA.hueShift, input.parentB.hueShift, rng),
+    speciesId,
+    hueShift,
+    mutated: species.mutated,
+    genetics: {
+      eyeShape: eye.value,
+      earForm: ear.value,
+      signature: sig.value,
+      microAnim: micro.value,
+      accessory: acc.value,
+      hueShift,
+    },
   };
 }
 
 export const SPECIES_BASE_HUE: Record<SpeciesId, number> = {
-  tofiby: 330,
-  bulut: 268,
-  yildiz: 162,
-  gizem: 42,
-  isilti: 28,
+  tofiby: speciesHue("tofiby"),
+  bulut: speciesHue("bulut"),
+  yildiz: speciesHue("yildiz"),
+  gizem: speciesHue("gizem"),
+  isilti: speciesHue("isilti"),
 };
 
-export function assignHiddenEggSpecies(userId: string, at: string): {
-  speciesId: SpeciesId;
-  hueShift: number;
-} {
+export function assignHiddenEggSpecies(
+  userId: string,
+  at: string,
+): { speciesId: SpeciesId; hueShift: number; genetics: Genetics } {
   const rng = createRng(seedFrom([userId, at, "hatch"]));
-  const species = BASE_SPECIES[Math.floor(rng.next() * BASE_SPECIES.length)];
+  const pool = BASE_SPECIES;
+  const species = pool[Math.floor(rng.next() * pool.length)];
   const jitter = (rng.next() * 2 - 1) * 8;
+  const hueShift = (SPECIES_BASE_HUE[species] + jitter + 360) % 360;
   return {
     speciesId: species,
-    hueShift: (SPECIES_BASE_HUE[species] + jitter + 360) % 360,
+    hueShift,
+    genetics: defaultGenetics(species, hueShift, [userId, at]),
   };
 }

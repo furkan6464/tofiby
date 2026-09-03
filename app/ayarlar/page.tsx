@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { detectTimezone } from "@/lib/dates";
-import { useApp, useSession } from "@/lib/store";
+import { downloadText, dumpCsv, dumpJson } from "@/lib/exportData";
+import { useActiveCreature, useApp, useSession } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
@@ -13,6 +14,12 @@ export default function SettingsPage() {
   const user = useSession();
   const update = useApp((s) => s.updateSettings);
   const logout = useApp((s) => s.logout);
+  const wipe = useApp((s) => s.deleteAccount);
+  const creature = useActiveCreature();
+  const goals = useApp((s) => s.goals);
+  const milestones = useApp((s) => s.milestones);
+  const tasks = useApp((s) => s.tasks);
+  const scores = useApp((s) => s.scores);
   if (!user) return null;
 
   return (
@@ -43,6 +50,27 @@ export default function SettingsPage() {
         </div>
       </Card>
       <Card className="mt-4 space-y-3 p-5">
+        <p className="text-sm text-faint">{t("rest.title")}</p>
+        <p className="text-xs text-muted">{t("rest.hint")}</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={`rounded-chip px-3 py-2 text-sm ${user.restDayOfWeek === null ? "bg-raised" : "text-faint"}`}
+            onClick={() => update({ restDayOfWeek: null })}
+          >
+            {t("rest.none")}
+          </button>
+          {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+            <button
+              key={d}
+              className={`rounded-chip px-3 py-2 text-sm ${user.restDayOfWeek === d ? "bg-raised" : "text-faint"}`}
+              onClick={() => update({ restDayOfWeek: d })}
+            >
+              {t(`days.${["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d]}`)}
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card className="mt-4 space-y-3 p-5">
         <p className="text-sm text-faint">{t("settings.notify")}</p>
         <label className="flex items-center justify-between text-sm">
           <span>{t("settings.notifyPoke")}</span>
@@ -61,6 +89,64 @@ export default function SettingsPage() {
           />
         </label>
       </Card>
+      <Card className="mt-4 space-y-3 p-5">
+        <p className="text-sm text-faint">{t("data.title")}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            tone="ghost"
+            onClick={() =>
+              downloadText(
+                "tofiby.json",
+                dumpJson({
+                  user,
+                  creature,
+                  goals: goals.filter((g) => g.userId === user.id),
+                  milestones,
+                  tasks: tasks.filter((x) => x.userId === user.id),
+                  scores: scores.filter((s) => s.userId === user.id),
+                }),
+                "application/json",
+              )
+            }
+          >
+            {t("data.json")}
+          </Button>
+          <Button
+            tone="ghost"
+            onClick={() =>
+              downloadText(
+                "tofiby-tasks.csv",
+                dumpCsv(tasks.filter((x) => x.userId === user.id)),
+                "text/csv",
+              )
+            }
+          >
+            {t("data.csv")}
+          </Button>
+        </div>
+        <p className="text-xs text-muted">{t("data.deleteHint")}</p>
+        <Button
+          tone="danger"
+          onClick={() => {
+            if (!window.confirm(t("data.confirm"))) return;
+            wipe();
+            router.push("/");
+          }}
+        >
+          {t("data.delete")}
+        </Button>
+      </Card>
+      <Button
+        tone="ghost"
+        className="mt-4"
+        onClick={() => {
+          if (typeof Notification !== "undefined") {
+            Notification.requestPermission().catch(() => undefined);
+          }
+        }}
+      >
+        {t("remind.enable")}
+      </Button>
       <Button
         tone="danger"
         className="mt-8"

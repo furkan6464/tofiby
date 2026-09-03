@@ -7,20 +7,30 @@ import { celebrate } from "@/lib/confetti";
 import { canMutateTaskDate } from "@/lib/dates";
 import { useApp, useSession } from "@/lib/store";
 import type { Task } from "@/lib/types";
+import { PostponeMenu } from "./PostponeMenu";
 
-export function TaskRow({ task }: { task: Task }) {
+export function TaskRow({
+  task,
+  showTime = false,
+  postpone = false,
+}: {
+  task: Task;
+  showTime?: boolean;
+  postpone?: boolean;
+}) {
   const user = useSession();
   const toggle = useApp((s) => s.toggleTask);
   const update = useApp((s) => s.updateTask);
   const pushToast = useApp((s) => s.pushToast);
   const [open, setOpen] = useState(false);
   const locked = user ? !canMutateTaskDate(task.date, user.timezone) : true;
+  const postponed = task.status === "postponed";
 
   return (
     <div className="border-b border-white/[0.04] py-2.5 last:border-0">
       <div className="flex items-start gap-3">
         <button
-          disabled={locked}
+          disabled={locked || postponed}
           onClick={() => {
             const res = toggle(task.id);
             if (res.closed) {
@@ -47,10 +57,19 @@ export function TaskRow({ task }: { task: Task }) {
             className="flex w-full items-center justify-between text-left"
             onClick={() => setOpen((v) => !v)}
           >
-            <span className={task.completed ? "text-muted line-through" : ""}>
-              {task.title}
+            <span className="flex min-w-0 items-baseline gap-2">
+              {showTime && task.time ? (
+                <span className="pixel-num shrink-0 text-[10px] text-faint">{task.time}</span>
+              ) : null}
+              <span
+                className={
+                  task.completed || postponed ? "text-muted line-through" : ""
+                }
+              >
+                {task.title}
+              </span>
             </span>
-            {task.weight === GAME_CONFIG.PRIORITY_TASK_WEIGHT ? (
+            {task.priority === "high" || task.weight === GAME_CONFIG.PRIORITY_TASK_WEIGHT ? (
               <span className="text-[10px] text-violet">{t("common.priority")}</span>
             ) : null}
           </button>
@@ -61,6 +80,9 @@ export function TaskRow({ task }: { task: Task }) {
               value={task.note}
               onChange={(e) => update(task.id, { note: e.target.value })}
             />
+          ) : null}
+          {postpone && !task.completed && user ? (
+            <PostponeMenu taskId={task.id} today={task.date} />
           ) : null}
         </div>
       </div>

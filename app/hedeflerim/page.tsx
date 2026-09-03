@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { t, tList } from "@/lib/i18n";
 import { GOAL_COLORS } from "@/lib/goalColors";
 import { todayKey } from "@/lib/dates";
+import { goalProgress } from "@/lib/plan";
 import { useApp, useSession } from "@/lib/store";
 import type { FrequencyPattern } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -15,16 +17,20 @@ import { Progress } from "@/components/ui/Progress";
 export default function GoalsPage() {
   const user = useSession();
   const goals = useApp((s) => s.goals);
-  const tasks = useApp((s) => s.tasks);
+  const milestones = useApp((s) => s.milestones);
   const addGoal = useApp((s) => s.addGoal);
   const archiveGoal = useApp((s) => s.archiveGoal);
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [weeklyFrequency, setWeeklyFrequency] = useState("5");
+  const [dailyMins, setDailyMins] = useState("30");
   const [color, setColor] = useState<string>(GOAL_COLORS[0]);
   const [frequency, setFrequency] = useState<FrequencyPattern>({ kind: "daily" });
+  const [stones, setStones] = useState("");
 
   if (!user) return null;
   const today = todayKey(user.timezone);
@@ -32,11 +38,12 @@ export default function GoalsPage() {
   const weekdays = tList("onboarding.weekdays");
 
   return (
-    <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
+    <main className="mx-auto max-w-3xl px-5 py-8">
       <div className="flex items-end justify-between">
         <h1 className="font-display text-4xl">{t("goals.title")}</h1>
         <Button onClick={() => setOpen(true)}>{t("goals.new")}</Button>
       </div>
+      <p className="mt-2 text-sm text-faint">{t("goals.cycle")}</p>
       <div className="mt-6 flex gap-2">
         {(["active", "archived"] as const).map((k) => (
           <button
@@ -53,16 +60,16 @@ export default function GoalsPage() {
           <Card className="p-8 text-center text-muted">{t("goals.empty")}</Card>
         ) : (
           mine.map((g) => {
-            const related = tasks.filter((x) => x.goalId === g.id && x.date <= today);
-            const done = related.filter((x) => x.completed).length;
-            const pct = related.length ? Math.round((done / related.length) * 100) : 0;
+            const pct = goalProgress(milestones.filter((m) => m.goalId === g.id));
             return (
               <Card key={g.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-display text-xl">{g.title}</p>
+                    <Link href={`/hedeflerim/${g.id}`} className="font-display text-xl">
+                      {g.title}
+                    </Link>
                     <p className="mt-1 text-sm text-faint">
-                      {t("goals.progress", { pct, done })}
+                      {t("goals.pct", { n: pct })}
                       {g.targetDate ? ` · ${t("goals.until", { date: g.targetDate })}` : ""}
                     </p>
                   </div>
@@ -71,12 +78,17 @@ export default function GoalsPage() {
                 <div className="mt-3">
                   <Progress value={pct} tone="violet" />
                 </div>
-                <button
-                  className="mt-4 text-sm text-violet"
-                  onClick={() => archiveGoal(g.id, tab === "active")}
-                >
-                  {tab === "active" ? t("common.archive") : t("common.restore")}
-                </button>
+                <div className="mt-4 flex gap-4">
+                  <Link href={`/hedeflerim/${g.id}`} className="text-sm text-violet">
+                    {t("goals.open")}
+                  </Link>
+                  <button
+                    className="text-sm text-violet"
+                    onClick={() => archiveGoal(g.id, tab === "active")}
+                  >
+                    {tab === "active" ? t("common.archive") : t("common.restore")}
+                  </button>
+                </div>
               </Card>
             );
           })
@@ -93,12 +105,21 @@ export default function GoalsPage() {
               title,
               taskTitle: taskTitle || title,
               note: "",
+              startDate: startDate || today,
               targetDate: targetDate || null,
+              weeklyFrequency: weeklyFrequency ? Number(weeklyFrequency) : null,
+              dailyDurationMinutes: dailyMins ? Number(dailyMins) : 30,
               frequency,
               color,
+              milestones: stones
+                .split("\n")
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line) => ({ title: line, weight: 1 })),
             });
             setTitle("");
             setTaskTitle("");
+            setStones("");
             setOpen(false);
           }}
         >
@@ -108,12 +129,46 @@ export default function GoalsPage() {
             value={taskTitle}
             onChange={(e) => setTaskTitle(e.target.value)}
           />
-          <Field
-            label={t("onboarding.goalDate")}
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label={t("onboarding.startDate")}
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <Field
+              label={t("onboarding.goalDate")}
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label={t("onboarding.weeklyFreq")}
+              type="number"
+              min={1}
+              max={7}
+              value={weeklyFrequency}
+              onChange={(e) => setWeeklyFrequency(e.target.value)}
+            />
+            <Field
+              label={t("onboarding.dailyMins")}
+              type="number"
+              min={5}
+              value={dailyMins}
+              onChange={(e) => setDailyMins(e.target.value)}
+            />
+          </div>
+          <label className="block space-y-1.5">
+            <span className="text-sm text-muted">{t("onboarding.milestones")}</span>
+            <textarea
+              className="min-h-20 w-full px-3 py-2.5"
+              placeholder={t("onboarding.milestoneAdd")}
+              value={stones}
+              onChange={(e) => setStones(e.target.value)}
+            />
+          </label>
           <div className="flex flex-wrap gap-2">
             {(
               [

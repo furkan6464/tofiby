@@ -27,7 +27,8 @@ export type SpriteState =
   | "yawn"
   | "sick"
   | "sparkle"
-  | "crack";
+  | "crack"
+  | "worried";
 
 export interface CreatureFrames {
   idle: PixelFrame[];
@@ -40,6 +41,7 @@ export interface CreatureFrames {
   sick: PixelFrame[];
   sparkle: PixelFrame[];
   crack: PixelFrame[];
+  worried: PixelFrame[];
 }
 
 export interface CreatureSpec {
@@ -49,4 +51,4 @@ export interface CreatureSpec {
   palette: Palette;
 }
 
-export const GRID = 20;
+export const GRID = 32;

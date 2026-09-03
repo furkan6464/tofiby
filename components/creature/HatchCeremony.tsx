@@ -15,6 +15,8 @@ type Beat = "egg" | "crack" | "flash" | "closed" | "opening" | "sparkle" | "name
 export function HatchCeremony() {
   const open = useApp((s) => s.pendingHatch);
   const dismiss = useApp((s) => s.dismissHatch);
+  const mutation = useApp((s) => s.pendingMutation);
+  const dismissMut = useApp((s) => s.dismissMutation);
   const creature = useActiveCreature();
   const [beat, setBeat] = useState<Beat>("egg");
 
@@ -35,15 +37,18 @@ export function HatchCeremony() {
     const timers = seq.map(({ at, beat: b }) =>
       setTimeout(() => {
         setBeat(b);
-        if (b === "name") celebrate("hatch");
+            if (b === "name") celebrate(mutation ? "marry" : "hatch");
       }, at),
     );
-    const done = setTimeout(dismiss, 6200);
+    const done = setTimeout(() => {
+      dismiss();
+      if (mutation) dismissMut();
+    }, 6200);
     return () => {
       timers.forEach(clearTimeout);
       clearTimeout(done);
     };
-  }, [open, dismiss]);
+  }, [open, dismiss, mutation, dismissMut]);
 
   if (!creature) return null;
   const name = friendName(creature.name);
@@ -51,6 +56,7 @@ export function HatchCeremony() {
     creature.speciesId,
     beat === "egg" || beat === "crack" || beat === "flash" ? "egg" : "baby",
     creature.hueShift,
+    creature.genetics,
   );
   let frames = art.frames;
   if (beat === "closed") {
@@ -84,7 +90,7 @@ export function HatchCeremony() {
           <PixelSprite
             frames={frames}
             palette={art.palette}
-            pixelSize={14}
+            pixelSize={9}
             state={spriteState}
           />
           {beat === "name" ? (
@@ -95,6 +101,12 @@ export function HatchCeremony() {
             >
               {t("hatch.hello", { name })}
             </motion.p>
+          ) : null}
+          {mutation && (beat === "sparkle" || beat === "name") ? (
+            <p className="mt-4 pixel-num text-[10px] text-pink">{t("mutation.banner")}</p>
+          ) : null}
+          {creature.rareMutation && beat === "name" ? (
+            <p className="mt-2 text-xs text-violet">{t("mutation.badge")}</p>
           ) : null}
           <button className="mt-10 text-sm text-faint" onClick={dismiss}>
             {t("common.continue")}

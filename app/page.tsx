@@ -7,7 +7,7 @@ import { CreatureView } from "@/components/creature/CreatureView";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
-const SPECIES = ["tofiby", "bulut", "yildiz", "gizem"] as const;
+import { starterSpecies } from "@/data/species/catalog";
 
 export default function LandingPage() {
   const user = useSession();
@@ -44,7 +44,7 @@ export default function LandingPage() {
               speciesId="tofiby"
               stage="adult"
               hueShift={330}
-              pixelSize={8}
+              pixelSize={5}
               state="idle"
             />
             <p className="mt-2 text-center text-xs text-faint">{t("landing.footerNote")}</p>
@@ -79,12 +79,12 @@ export default function LandingPage() {
           <h2 className="font-display text-2xl">{t("landing.speciesTitle")}</h2>
           <p className="mt-2 text-sm text-faint">{t("landing.speciesHint")}</p>
           <div className="mt-5 flex flex-wrap gap-4">
-            {SPECIES.map((id, i) => (
+            {starterSpecies().map((id, i) => (
               <div
                 key={id}
                 className={`rounded-panel bg-surface p-3 ${i === 2 ? "mt-5" : ""}`}
               >
-                <CreatureView speciesId={id} stage="egg" hueShift={0} pixelSize={4} />
+                <CreatureView speciesId={id} stage="egg" hueShift={0} pixelSize={3} />
                 <p className="mt-1 text-center text-xs text-muted">{t(`species.${id}`)}</p>
               </div>
             ))}

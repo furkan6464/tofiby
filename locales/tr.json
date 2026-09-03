@@ -13,14 +13,21 @@
     "unnamed": "minik dostun"
   },
   "nav": {
-    "home": "Ana sayfa",
+    "home": "Bugün",
     "calendar": "Takvim",
-    "goals": "Hedeflerim",
+    "goals": "Hedefler",
+    "tasks": "Görevler",
+    "analytics": "Analiz",
     "creature": "Dostun",
+    "growth": "Büyüme",
+    "bond": "Bağ",
+    "generation": "Nesil",
     "profile": "Profil",
     "community": "Topluluk",
     "settings": "Ayarlar",
-    "logout": "Çıkış"
+    "logout": "Çıkış",
+    "productivity": "Üretkenlik",
+    "creatureCol": "Dost"
   },
   "common": {
     "continue": "İleri",
@@ -52,6 +59,7 @@
     "registerTitle": "Yuvayı kur",
     "registerSubtitle": "Bir isim seç. Geri kalanını birlikte öreceğiz.",
     "username": "Kullanıcı adı",
+    "loginId": "Kullanıcı adı veya e-posta",
     "email": "E-posta",
     "password": "Parola",
     "submitLogin": "İçeri gir",
@@ -60,7 +68,7 @@
     "toLogin": "Zaten yuvan var mı? Giriş yap",
     "errorGeneric": "Bir şey ters gitti. Tekrar dene.",
     "errorTaken": "Bu kullanıcı adı veya e-posta alınmış.",
-    "errorCreds": "Kullanıcı adı veya parola uyuşmuyor.",
+    "errorCreds": "Kullanıcı adı, e-posta veya parola uyuşmuyor.",
     "errorShort": "Parola en az 6 karakter olmalı.",
     "errorUser": "Kullanıcı adı 3-16 karakter, harf ve rakam."
   },
@@ -91,11 +99,11 @@
     "yildiz": "Yıldız",
     "gizem": "Gizem",
     "isilti": "Işıltı",
-    "tofibyBlurb": "Yuvarlak kedi-tilki blob. Kalp yanaklı.",
-    "bulutBlurb": "Yumuşak hayalet-bulut. Dalgalı etek.",
-    "yildizBlurb": "Köşeleri yuvarlatılmış yıldız.",
-    "gizemBlurb": "Tek büyük meraklı göz. Neon benek.",
-    "isiltiBlurb": "Nadir mutasyon. Kor gibi parıltı."
+    "tofibyBlurb": "Reçel damlası. Kalp yanaklı, kayısı kulaklı.",
+    "bulutBlurb": "Sis mantısı. Dalgalı etek, limon vurgu.",
+    "yildizBlurb": "Çiy feneri. Yuvarlak, altın çiy tanesi.",
+    "gizemBlurb": "İki kocaman meraklı göz. Bal mantısı.",
+    "isiltiBlurb": "Mücevher şeftali. Elmas ışıltılı taç."
   },
   "stage": {
     "egg": "Yumurta",
@@ -126,6 +134,11 @@
     "goalTitle": "Neyi başarmak istiyorsun?",
     "goalHint": "Birden fazla hedef ekleyebilirsin. Her birinin kendi takvim ritmi olur.",
     "goalPlaceholder": "ör. 6 ayda İngilizce B1",
+    "startDate": "Başlangıç",
+    "weeklyFreq": "Haftada kaç gün",
+    "dailyMins": "Günlük süre (dk)",
+    "milestones": "Kilometre taşları",
+    "milestoneAdd": "Kilometre taşı ekle",
     "goalDate": "Hedef tarih",
     "frequency": "Ne sıklıkla?",
     "freqDaily": "Her gün",
@@ -153,7 +166,18 @@
     "greetDay": "Merhaba, {name}",
     "greetDusk": "İyi akşamlar, {name}",
     "greetLate": "Hâlâ buradasın, {name}",
-    "todayTitle": "Bugün yapılacaklar",
+    "todayTitle": "Bugünkü İşler",
+    "todayKicker": "Bugün — {date}",
+    "todayBar": "Bugünün ilerlemesi",
+    "todayCount": "{done}/{total} görev",
+    "todayCue": "Bugün %{pct}'e ulaşırsan serin korunur.",
+    "todayCueMet": "Bugün eşiği geçtin. Serin korunuyor.",
+    "coach": "Bugün {planned} görev planladın. {done} tanesini tamamladın. Serini korumak için {need} görev daha yeterli.",
+    "coachMet": "Bugün {planned} görev planladın. {done} tanesini tamamladın. Serin güvende.",
+    "coachEmpty": "Bugün henüz bir görev yok. Bir tane ekle — ya da günü boş bırak.",
+    "longGoals": "Uzun Vadeli Hedeflerim",
+    "friendHow": "Dostum nasıl durumda?",
+    "seeGrowth": "Büyümeyi gör",
     "quickAdd": "Hızlı bir görev yaz…",
     "streakNow": "Güncel seri",
     "streakBest": "En uzun seri",
@@ -198,7 +222,33 @@
     "paletteGoal": "Hedef ara",
     "goToday": "Bugün",
     "detail": "Görev",
-    "date": "Tarih"
+    "date": "Tarih",
+    "time": "Saat",
+    "duration": "Süre (dk)",
+    "tag": "Etiket",
+    "priority": "Öncelik",
+    "priorityLow": "Düşük",
+    "priorityMid": "Orta",
+    "priorityHigh": "Yüksek",
+    "desc": "Açıklama",
+    "checklist": "Kontrol listesi",
+    "reminder": "Hatırlatıcı (dk önce)",
+    "milestone": "Kilometre taşı",
+    "unscheduled": "Saatsiz",
+    "planHours": "Bu haftaya saat dağıt",
+    "planTitle": "Ne çalışacaksın?",
+    "planAmount": "Kaç saat?",
+    "planGo": "Boşluklara yerleştir",
+    "planDone": "{n} blok yerleştirildi.",
+    "upcoming": "Bugünün işleri",
+    "viewAll": "Tümü",
+    "breakdown": "Zaman dağılımı",
+    "myCalendars": "Takvimlerim",
+    "start": "Başlangıç",
+    "end": "Bitiş",
+    "addNote": "Not ekle",
+    "more": "Tüm alanlar",
+    "looseHint": "Saatsiz — ızgaraya sürükle"
   },
   "goals": {
     "title": "Hedeflerim",
@@ -208,7 +258,16 @@
     "empty": "Henüz bir hedef yok. Bir tane yaz — takvim onu taşıyacak.",
     "paused": "Duraklatıldı. Geçmiş silinmedi.",
     "progress": "{pct}% — {done} günde çalıştın",
-    "until": "bitiş {date}"
+    "until": "bitiş {date}",
+    "pct": "%{n}",
+    "open": "Analizi aç",
+    "plannedVs": "{planned} planlanan gün · {worked} çalışılan gün",
+    "avgDcs": "Ortalama DCS {n}",
+    "minutes": "{n} dk çalışıldı",
+    "streak": "En uzun hedef serisi {n}",
+    "remain": "Hedef tarihine {n} gün",
+    "last7": "Son 7 gün",
+    "cycle": "Hedef → Plan → Görev → Çalışma → Kayıt → Analiz → Adaptasyon"
   },
   "creature": {
     "title": "Dostun",
@@ -285,7 +344,8 @@
     "married": "Bir yavru yumurtası doğdu.",
     "pokedYou": "{name} seni dürttü — bugünü unutma.",
     "friendIn": "Yeni bir arkadaş isteği var.",
-    "grew": "{name} büyüdü!"
+    "grew": "{name} büyüdü!",
+    "streakPaused": "Serimiz bugün durdu. Yarın yeniden başlayabiliriz."
   },
   "empty": {
     "genericTitle": "Burası henüz sessiz",
@@ -299,5 +359,208 @@
     "fri": "Cum",
     "sat": "Cmt",
     "sun": "Paz"
+  },
+  "family": {
+    "title": "Ailem",
+    "gen": "{n}. nesil",
+    "card": "{name} {date} tarihinde yuvalandı, {days} gün seninle yaşadı, {gen}. nesil.",
+    "siblings": "Kardeşleri"
+  },
+  "room": {
+    "title": "Odası",
+    "hint": "Eşyalar kilometre taşlarıyla açılır. Hiçbirinin oynanış etkisi yok.",
+    "plant": "Bitki",
+    "bookshelf": "Kitaplık",
+    "bed": "Yatak",
+    "photo": "Çerçeve",
+    "desk": "Masa",
+    "toy": "Oyuncak"
+  },
+  "wrap": {
+    "kicker": "Bizim yılımız",
+    "title": "{year}",
+    "open": "Özeti aç",
+    "active": "{n} aktif gün",
+    "gp": "{n} GP",
+    "streak": "En uzun seri {n}",
+    "goals": "{n} hedef tamamlandı",
+    "busy": "En aktif gün: {day}",
+    "share": "Görseli indir"
+  },
+  "routine": {
+    "morning": "Son 8 haftada görevlerinin %{pct}'ini sabah tamamladın. Sabah rutini senin için daha iyi çalışıyor.",
+    "noon": "Son 8 haftada görevlerinin %{pct}'ini öğle saatlerinde tamamladın. Öğlen ritmi sana uyuyor.",
+    "evening": "Son 8 haftada görevlerinin %{pct}'ini 17:00–22:00 arasında tamamladın. Akşam rutini senin için daha iyi çalışıyor.",
+    "night": "Son 8 haftada görevlerinin %{pct}'ini gece saatlerinde tamamladın. Gece sessizliği sana uyuyor.",
+    "apply": "Görevlerimi bu saatlere göre planla",
+    "hint": {
+      "morning": "Sabah penceresi için bir görev…",
+      "noon": "Öğlen penceresi için bir görev…",
+      "evening": "Akşam penceresi için bir görev…",
+      "night": "Gece penceresi için bir görev…"
+    }
+  },
+  "together": {
+    "ask": "Birlikte yapalım",
+    "placeholder": "Bugün ne?",
+    "note": "Birlikte",
+    "done": "Birlikte bitti.",
+    "exists": "Bugün zaten bir ortak kartınız var."
+  },
+  "story": {
+    "none": [
+      "Bugün seni göremedim.",
+      "Sessiz bir gün. Yarın yine buradayım.",
+      "Köşedeyim. İstersen bir satır yaz."
+    ],
+    "perfect": [
+      "Bugün harikaydın!",
+      "Her şeyi tuttun. Bunu unutmayacağım.",
+      "Bugün tam bir gün."
+    ],
+    "streak7": [
+      "7 gündür beraberiz.",
+      "Bir haftalık bir ritim.",
+      "Yedi gün. Küçük, sağlam."
+    ],
+    "streak14": [
+      "14 gündür yan yanayız.",
+      "İki haftalık bir bağ.",
+      "Bu ritim bize yakışıyor."
+    ],
+    "streak30": [
+      "30 gündür beraberiz.",
+      "Bir ay. Sessizce büyüdük.",
+      "Otuz gün, aynı köşe."
+    ],
+    "return": [
+      "Geri geldin!",
+      "Yine buradasın. İyi ki.",
+      "Kapı açıktı. Hoş geldin."
+    ],
+    "idle": [
+      "Bugün de buradayım.",
+      "Köşedeyim, acele yok.",
+      "Bir adım yeter, ister seninle."
+    ],
+    "morning": "Günaydın."
+  },
+  "rest": {
+    "title": "Dinlenme günü",
+    "hint": "Haftada bir gün. O gün seri bozulmaz, GP gelmez, hastalık sayılmaz.",
+    "none": "Yok",
+    "today": "Bugün dinlenme günün. Seri duruyor, acele yok."
+  },
+  "enough": {
+    "need": "Bugün büyümen için {total} görevden {need}'i yeterli.",
+    "met": "Bugün yeterince yaptın, seriyi korudun."
+  },
+  "consistency": {
+    "title": "Tutarlılık profilin",
+    "overall": "Genel tutarlılık %{n}",
+    "avg": "Ortalama DCS {n}",
+    "line": "Senin en güçlü günlerin {a} ve {b}."
+  },
+  "achieve": {
+    "title": "Başarılar",
+    "hidden": "Henüz keşfedilmedi.",
+    "first_step": {
+      "name": "İlk Adım",
+      "hint": "İlk seri gününü tamamla."
+    },
+    "quietly_on": {
+      "name": "Sessizce Devam",
+      "hint": "14 ardışık seri günü."
+    },
+    "came_back": {
+      "name": "Geri Döndün",
+      "hint": "Hastalıktan iyileş."
+    },
+    "long_road": {
+      "name": "Uzun Yol",
+      "hint": "100 aktif gün."
+    },
+    "two_person": {
+      "name": "İki Kişilik Rutin",
+      "hint": "150 uyum puanı."
+    },
+    "family_grows": {
+      "name": "Aile Büyüyor",
+      "hint": "İlk yavru yumurtası."
+    }
+  },
+  "letter": {
+    "toast": "{n} gün.",
+    "7": "7 gün. Küçük bir başlangıç, benimle.",
+    "30": "30 gün. Beni bir aydır büyütüyorsun.",
+    "100": "100 gün. Beni 100 gündür büyütüyorsun.",
+    "365": "365 gün. Bir yıl, aynı köşe."
+  },
+  "eggs": {
+    "title": "Yumurta koleksiyonu",
+    "item": "Yumurta {n}",
+    "born": "Bu yumurtadan {name} doğdu."
+  },
+  "mutation": {
+    "banner": "NADİR MUTASYON",
+    "badge": "Nadir"
+  },
+  "postpone": {
+    "action": "Ertele",
+    "tomorrow": "Yarın",
+    "week": "Bu hafta",
+    "custom": "Özel tarih"
+  },
+  "review": {
+    "title": "Bu haftan",
+    "line": "{done} / {total} görev tamamlandı · %{dcs} ortalama DCS · {days} aktif gün · +{gp} GP",
+    "best": "En iyi günün: {day}",
+    "top": "En çok çalıştığın hedef: {goal}",
+    "plan": "Gelecek haftayı planla",
+    "dismiss": "Gördüm"
+  },
+  "insights": {
+    "title": "Analiz",
+    "consistency": "Tutarlılık: %{n} (son 30 günde {delta})",
+    "avgTasks": "Ortalama günlük görev: {n}",
+    "avgDcs": "Ortalama DCS: {n}",
+    "bestDay": "En verimli gün: {day}",
+    "bestHour": "En verimli saat: {window}",
+    "strong": "En güçlü hedef: {goal}",
+    "weak": "En çok aksayan hedef: {goal}",
+    "soft": "{day} planın genellikle yoğun oluyor. {planned} görev yerine {suggested} görev planlamak ister misin?",
+    "softYes": "Bu sınırı hatırla",
+    "softNo": "Şimdilik değil"
+  },
+  "tasksPage": {
+    "title": "Görevler",
+    "upcoming": "Yaklaşan",
+    "empty": "Önünde bekleyen bir görev yok."
+  },
+  "data": {
+    "title": "Verilerim",
+    "json": "JSON indir",
+    "csv": "CSV indir",
+    "delete": "Hesabımı sil",
+    "deleteHint": "Hesabını sildiğinde görevlerin, hedeflerin, skorların ve dostunun kaydı bu cihazda hemen silinir. Yedek yoksa geri alınamaz. Dış takvim verisi henüz tutulmuyor.",
+    "confirm": "Hesabı ve tüm yerel veriyi sil"
+  },
+  "remind": {
+    "soon": "Bugün {task} yapacaktın.",
+    "now": "{task} zamanı geldi.",
+    "streak": "Bugün serini korumak için %{need} daha tamamlaman yeterli.",
+    "enable": "Hatırlatıcıları aç"
+  },
+  "search": {
+    "title": "Ara",
+    "empty": "Eşleşen bir şey yok.",
+    "task": "Görev",
+    "goal": "Hedef",
+    "friend": "Dost",
+    "date": "Tarih"
+  },
+  "gen": {
+    "title": "Nesil",
+    "hint": "Aile ağacı ve yumurta koleksiyonu burada durur — üretkenlik ekranlarından ayrı."
   }
 }

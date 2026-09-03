@@ -16,20 +16,7 @@ import {
   stageForGp,
   unionBarPct,
 } from "./growthEngine";
-import type { Task } from "./types";
-
-function task(partial: Partial<Task> & { weight: number; completed: boolean }): Task {
-  return {
-    id: "t",
-    userId: "u",
-    goalId: null,
-    date: "2026-01-01",
-    title: "x",
-    note: "",
-    completedAt: null,
-    ...partial,
-  };
-}
+import { sampleTask as task } from "./testTask";
 
 describe("growthEngine", () => {
   it("reads every numeric knob from GAME_CONFIG", () => {
@@ -219,5 +206,34 @@ describe("growthEngine", () => {
     assert.equal(reset.recoveryStreak, 0);
     assert.equal(reset.health, "sick");
     assert.equal(recoveryBarPct(2), (2 / 3) * 100);
+  });
+
+  it("treats a rest day as neutral: streak and sickness counters freeze, no GP", () => {
+    const out = applyDayFinalization({
+      currentStreak: 9,
+      longestStreak: 12,
+      totalGp: 80,
+      dcs: 0,
+      hatched: true,
+      health: "active",
+      consecutiveZeroDays: 3,
+      recoveryStreak: 0,
+      isRestDay: true,
+    });
+    assert.equal(out.currentStreak, 9);
+    assert.equal(out.totalGp, 80);
+    assert.equal(out.gpEarned, 0);
+    assert.equal(out.consecutiveZeroDays, 3);
+    assert.equal(out.health, "active");
+    assert.equal(out.isStreakDay, false);
+  });
+
+  it("drops postponed tasks from the DCS denominator", () => {
+    const dcs = dailyCompletionScore([
+      task({ id: "a", weight: 1, completed: true }),
+      task({ id: "b", weight: 1, completed: true }),
+      task({ id: "c", weight: 1, completed: false, status: "postponed" }),
+    ]);
+    assert.equal(dcs, 1);
   });
 });

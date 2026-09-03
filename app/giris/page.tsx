@@ -12,7 +12,7 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useApp((s) => s.login);
   const user = useSession();
-  const [username, setUsername] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
@@ -29,15 +29,16 @@ export default function LoginPage() {
         className="mt-8 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          const res = login(username, password);
+          const res = login(identifier, password);
           if (!res.ok) setError(res.error);
           else router.push("/anasayfa");
         }}
       >
         <Field
-          label={t("auth.username")}
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          label={t("auth.loginId")}
+          autoComplete="username"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
         />
         <Field
           label={t("auth.password")}

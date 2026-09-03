@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { t, tList } from "@/lib/i18n";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { t } from "@/lib/i18n";
 import {
   addDays,
   addMonths,
-  canMutateTaskDate,
   isSameMonth,
   monthGrid,
   monthLabel,
@@ -17,30 +17,53 @@ import { useApp, useSession } from "@/lib/store";
 import type { Task } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Field } from "@/components/ui/Field";
-import { Modal } from "@/components/ui/Modal";
-import { TaskRow } from "@/components/tasks/TaskRow";
+import { TaskDetail } from "@/components/tasks/TaskDetail";
+import { CalendarRail } from "@/components/calendar/CalendarRail";
+import { WeekGrid } from "@/components/calendar/WeekGrid";
+import {
+  EventComposer,
+  taskToDraft,
+  type ComposerDraft,
+} from "@/components/calendar/EventComposer";
+import { tint } from "@/lib/timeBlock";
 
 type View = "month" | "week" | "day" | "list";
 
 export default function CalendarPage() {
+  return (
+    <Suspense fallback={<main className="px-5 py-8" />}>
+      <CalendarInner />
+    </Suspense>
+  );
+}
+
+function CalendarInner() {
   const user = useSession();
   const tasks = useApp((s) => s.tasks);
   const goals = useApp((s) => s.goals);
   const addTask = useApp((s) => s.addTask);
   const moveTask = useApp((s) => s.moveTask);
   const updateTask = useApp((s) => s.updateTask);
-  const updateTaskSeries = useApp((s) => s.updateTaskSeries);
-  const [view, setView] = useState<View>("month");
+  const toggleTask = useApp((s) => s.toggleTask);
+  const planHours = useApp((s) => s.planHours);
+  const search = useSearchParams();
+  const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState("");
   const [filter, setFilter] = useState("all");
-  const [inline, setInline] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [drawer, setDrawer] = useState<Task | null>(null);
-  const [palette, setPalette] = useState(false);
-  const [query, setQuery] = useState("");
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const [pendingPatch, setPendingPatch] = useState<{ title: string } | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [hoursTitle, setHoursTitle] = useState("");
+  const [hoursAmt, setHoursAmt] = useState("6");
+  const [draft, setDraft] = useState<ComposerDraft | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
+
+  useEffect(() => {
+    const qDate = search.get("d");
+    const qView = search.get("view");
+    if (qDate) setCursor(qDate);
+    if (qView === "week" || qView === "day" || qView === "month" || qView === "list") {
+      setView(qView);
+    }
+  }, [search]);
 
   useEffect(() => {
     if (user && !cursor) setCursor(todayKey(user.timezone));
@@ -54,80 +77,160 @@ export default function CalendarPage() {
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.isContentEditable);
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPalette(true);
-        return;
-      }
-      if (palette || drawer || typing) return;
+      if (drawerId || draft || typing) return;
       if (!user) return;
       const today = todayKey(user.timezone);
-      if (e.key === "t" || e.key === "T") {
-        setCursor(today);
-      }
+      if (e.key === "t" || e.key === "T") setCursor(today);
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         const dir = e.key === "ArrowLeft" ? -1 : 1;
         setCursor((c) => {
           const base = c || today;
           if (view === "month") return addMonths(base, dir);
-          if (view === "week") return addDays(base, dir * 7);
-          return addDays(base, dir);
+          return addDays(base, dir * (view === "week" ? 7 : 1));
         });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [user, view, palette, drawer]);
+  }, [user, view, drawerId, draft]);
+
+  const today = user ? todayKey(user.timezone) : "";
+  const activeCursor = cursor || today;
+  const week = weekKeys(activeCursor);
+  const mine = useMemo(
+    () => goals.filter((g) => g.userId === user?.id && g.status === "active"),
+    [goals, user?.id],
+  );
+  const mineTasks = useMemo(
+    () =>
+      tasks.filter((x) => {
+        if (!user || x.userId !== user.id) return false;
+        if (filter !== "all" && x.goalId !== filter) return false;
+        return true;
+      }),
+    [tasks, user, filter],
+  );
+  const todayTasks = useMemo(
+    () =>
+      mineTasks
+        .filter((x) => x.date === today && x.status !== "postponed")
+        .sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99")),
+    [mineTasks, today],
+  );
+  const loose = useMemo(
+    () => mineTasks.filter((x) => week.includes(x.date) && !x.time && x.status !== "postponed"),
+    [mineTasks, week],
+  );
+  const breakdown = useMemo(() => {
+    return mine
+      .map((g) => ({
+        id: g.id,
+        title: g.title,
+        color: g.color,
+        minutes: mineTasks
+          .filter((x) => x.goalId === g.id && week.includes(x.date) && x.status !== "postponed")
+          .reduce((s, x) => s + (x.estimatedDurationMinutes ?? 30), 0),
+      }))
+      .filter((x) => x.minutes > 0);
+  }, [mine, mineTasks, week]);
 
   if (!user) return null;
-  const today = todayKey(user.timezone);
-  const activeCursor = cursor || today;
-  const mine = goals.filter((g) => g.userId === user.id && g.status === "active");
-  const mineTasks = tasks.filter((x) => {
-    if (x.userId !== user.id) return false;
-    if (filter !== "all" && x.goalId !== filter) return false;
-    return true;
-  });
+  const drawer = tasks.find((x) => x.id === drawerId) ?? null;
 
-  function nudge(dir: number) {
-    setCursor((c) => {
-      const base = c || today;
-      if (view === "month") return addMonths(base, dir);
-      if (view === "week") return addDays(base, dir * 7);
-      return addDays(base, dir);
-    });
-  }
-
-  function submitInline(date: string) {
-    if (!draft.trim()) {
-      setInline(null);
-      return;
+  function saveDraft() {
+    if (!draft?.title.trim()) return;
+    if (draft.id) {
+      updateTask(draft.id, {
+        title: draft.title.trim(),
+        note: draft.note,
+        goalId: draft.goalId || null,
+        estimatedDurationMinutes: draft.duration,
+      });
+      moveTask(draft.id, draft.date, draft.time);
+    } else {
+      addTask({
+        date: draft.date,
+        title: draft.title,
+        note: draft.note,
+        goalId: draft.goalId || null,
+        time: draft.time,
+        estimatedDurationMinutes: draft.duration,
+      });
     }
-    addTask({ date, title: draft, goalId: filter === "all" ? null : filter });
-    setDraft("");
-    setInline(null);
+    setDraft(null);
   }
 
-  const days =
-    view === "month"
-      ? monthGrid(activeCursor)
-      : view === "week"
-        ? weekKeys(activeCursor)
-        : [activeCursor];
+  const rail = (
+    <CalendarRail
+      cursor={activeCursor}
+      today={today}
+      week={week}
+      monthDays={monthGrid(activeCursor)}
+      todayTasks={todayTasks}
+      goals={mine}
+      filter={filter}
+      breakdown={breakdown}
+      hoursTitle={hoursTitle}
+      hoursAmt={hoursAmt}
+      onCursor={setCursor}
+      onFilter={setFilter}
+      onToggle={(id) => toggleTask(id)}
+      onOpen={setDrawerId}
+      onHoursTitle={setHoursTitle}
+      onHoursAmt={setHoursAmt}
+      onPlan={() => {
+        if (!hoursTitle.trim()) return;
+        planHours(hoursTitle.trim(), Number(hoursAmt) || 1, week);
+        setHoursTitle("");
+      }}
+    />
+  );
 
   return (
-    <main className="safe-pad mx-auto max-w-6xl px-5 py-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <main className="flex h-auto flex-col px-4 py-4 lg:h-dvh lg:overflow-hidden lg:px-5 lg:py-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">{t("calendar.title")}</h1>
-          <p className="mt-1 text-muted">{monthLabel(activeCursor)}</p>
+          <h1 className="font-display text-3xl capitalize">{monthLabel(activeCursor)}</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="rounded-chip bg-raised px-3 py-1.5 text-sm lg:hidden"
+            onClick={() => setRailOpen((v) => !v)}
+          >
+            {t("calendar.upcoming")}
+          </button>
+          <Button
+            tone="ghost"
+            onClick={() =>
+              setCursor(
+                view === "month"
+                  ? addMonths(activeCursor, -1)
+                  : addDays(activeCursor, view === "day" ? -1 : -7),
+              )
+            }
+          >
+            {t("common.back")}
+          </Button>
+          <Button tone="ghost" onClick={() => setCursor(today)}>
+            {t("calendar.goToday")}
+          </Button>
+          <Button
+            tone="ghost"
+            onClick={() =>
+              setCursor(
+                view === "month"
+                  ? addMonths(activeCursor, 1)
+                  : addDays(activeCursor, view === "day" ? 1 : 7),
+              )
+            }
+          >
+            {t("common.continue")}
+          </Button>
           {(["month", "week", "day", "list"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`rounded-chip px-3 py-1.5 text-sm ${view === v ? "bg-raised" : "text-faint"}`}
+              className={`rounded-full px-3 py-1.5 text-sm ${view === v ? "bg-white text-black" : "text-faint"}`}
             >
               {t(`calendar.${v}`)}
             </button>
@@ -135,346 +238,157 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button tone="ghost" onClick={() => nudge(-1)}>
-          {t("common.back")}
-        </Button>
-        <Button tone="ghost" onClick={() => setCursor(today)}>
-          {t("calendar.goToday")}
-        </Button>
-        <Button tone="ghost" onClick={() => nudge(1)}>
-          {t("common.continue")}
-        </Button>
-        <select
-          className="rounded-chip bg-raised px-3 py-2 text-sm"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        >
-          <option value="all">{t("calendar.filterAll")}</option>
-          {mine.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.title}
-            </option>
-          ))}
-        </select>
-      </div>
+      {railOpen ? <div className="mb-4 lg:hidden">{rail}</div> : null}
 
-      {view === "list" ? (
-        <div className="mt-6 space-y-3">
-          {Array.from({ length: 21 }, (_, i) => ({ d: addDays(today, i), i })).map(({ d, i }) => {
-            const dayTasks = mineTasks.filter((x) => x.date === d);
-            if (dayTasks.length === 0 && i > 7) return null;
-            return (
-              <Card key={d} className="p-4">
-                <p className="text-sm text-muted">{prettyDate(d)}</p>
-                {dayTasks.length === 0 ? (
-                  <p className="mt-2 text-sm text-faint">{t("calendar.emptyDay")}</p>
-                ) : (
-                  dayTasks.map((task) => (
-                    <button
-                      key={task.id}
-                      className="mt-2 block w-full text-left text-sm"
-                      onClick={() => setDrawer(task)}
-                    >
-                      {task.title}
-                    </button>
-                  ))
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      ) : view !== "day" ? (
-        <div className="mt-6 grid grid-cols-7 gap-1">
-          {tList("onboarding.weekdays").map((d) => (
-            <p key={d} className="text-center text-[10px] text-faint">
-              {d}
-            </p>
-          ))}
-          {days.map((d) => {
-            const dayTasks = mineTasks.filter((x) => x.date === d);
-            const ratio =
-              dayTasks.length === 0
-                ? 0
-                : dayTasks.filter((x) => x.completed).length / dayTasks.length;
-            return (
-              <div
-                key={d}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const id = e.dataTransfer.getData("text/task-id");
-                  if (id) moveTask(id, d);
-                }}
-                onClick={() => {
-                  setCursor(d);
-                  setInline(d);
-                }}
-                className={`min-h-28 rounded-chip border border-white/[0.04] p-2 text-left ${
-                  d === today ? "bg-raised" : "bg-surface"
-                } ${view === "month" && !isSameMonth(d, activeCursor) ? "opacity-35" : ""}`}
-              >
-                <p className="text-xs">{d.slice(8)}</p>
-                <div className="mt-1 h-1 overflow-hidden rounded-[2px] bg-white/[0.06]">
-                  <div className="h-full bg-mint" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                </div>
-                <div className="mt-2 space-y-1">
-                  {dayTasks.slice(0, view === "week" ? 8 : 3).map((task) => (
-                    <div
-                      key={task.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/task-id", task.id);
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDrawer(task);
-                      }}
-                      className={`truncate rounded-[4px] px-1 py-0.5 text-[11px] ${
-                        task.completed ? "text-faint line-through" : "bg-raised"
-                      }`}
-                    >
-                      {task.title}
-                    </div>
-                  ))}
-                </div>
-                {inline === d ? (
-                  <input
-                    autoFocus
-                    className="mt-2 w-full px-1 py-1 text-xs"
-                    placeholder={t("calendar.inlineAdd")}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") submitInline(d);
-                      if (e.key === "Escape") setInline(null);
+      <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:gap-5">
+        <div className="hidden lg:block lg:min-h-0">{rail}</div>
+
+        <section className="flex h-[70vh] min-h-[28rem] min-w-0 flex-col rounded-2xl border border-white/[0.06] bg-surface p-3 lg:h-full lg:min-h-0 lg:p-4">
+          {loose.length > 0 && (view === "week" || view === "day") ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] text-faint">{t("calendar.looseHint")}</span>
+              {loose.map((task) => (
+                <button
+                  key={task.id}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData("text/task-id", task.id)}
+                  onClick={() => setDraft(taskToDraft(task))}
+                  className="rounded-full bg-raised px-2.5 py-1 text-xs"
+                >
+                  {task.title}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {view === "list" ? (
+            <div className="space-y-3 overflow-y-auto">
+              {Array.from({ length: 21 }, (_, i) => addDays(today, i)).map((d) => {
+                const dayTasks = mineTasks.filter((x) => x.date === d);
+                if (dayTasks.length === 0 && d > addDays(today, 7)) return null;
+                return (
+                  <Card key={d} className="p-4">
+                    <p className="text-sm text-muted">{prettyDate(d)}</p>
+                    {dayTasks.map((task) => (
+                      <button
+                        key={task.id}
+                        className="mt-2 block w-full text-left text-sm"
+                        onClick={() => setDraft(taskToDraft(task))}
+                      >
+                        {task.time ? `${task.time} · ` : ""}
+                        {task.title}
+                      </button>
+                    ))}
+                  </Card>
+                );
+              })}
+            </div>
+          ) : view === "month" ? (
+            <div className="grid min-h-0 flex-1 grid-cols-7 gap-1 overflow-auto">
+              {weekKeys(activeCursor).map((d) => (
+                <p key={d} className="text-center text-[10px] text-faint">
+                  {prettyDate(d).split(" ")[0]}
+                </p>
+              ))}
+              {monthGrid(activeCursor).map((d) => {
+                const dayTasks = mineTasks.filter((x) => x.date === d && x.status !== "postponed");
+                return (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      setCursor(d);
+                      setView("week");
                     }}
-                    onBlur={() => submitInline(d)}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <Card className="mt-6 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-2xl">{prettyDate(activeCursor)}</h2>
-          </div>
-          {!canMutateTaskDate(activeCursor, user.timezone) && activeCursor < today ? (
-            <p className="mt-2 text-sm text-faint">{t("calendar.closedDay")}</p>
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      const id = e.dataTransfer.getData("text/task-id");
+                      if (id) moveTask(id, d);
+                    }}
+                    className={`min-h-24 rounded-xl border border-white/[0.04] p-1.5 text-left ${
+                      d === today ? "bg-raised" : ""
+                    } ${!isSameMonth(d, activeCursor) ? "opacity-35" : ""}`}
+                  >
+                    <p className="text-[11px]">{d.slice(8)}</p>
+                    <div className="mt-1 space-y-1">
+                      {dayTasks.slice(0, 3).map((task) => {
+                        const color = mine.find((g) => g.id === task.goalId)?.color ?? "#6B8CFF";
+                        return (
+                          <div
+                            key={task.id}
+                            className="truncate rounded-md px-1 py-0.5 text-[10px]"
+                            style={{ background: tint(color, 0.35) }}
+                          >
+                            {task.title}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <input
-              className="mt-3 w-full px-3 py-2 text-sm"
-              placeholder={t("calendar.inlineAdd")}
-              value={inline === activeCursor ? draft : ""}
-              onFocus={() => setInline(activeCursor)}
-              onChange={(e) => {
-                setInline(activeCursor);
-                setDraft(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitInline(activeCursor);
-              }}
+            <WeekGrid
+              week={view === "day" ? [activeCursor] : week}
+              today={today}
+              cursor={activeCursor}
+              tasks={mineTasks}
+              goals={mine}
+              onCursor={setCursor}
+              onOpen={(task) => setDraft(taskToDraft(task))}
+              onSlot={(date, time) =>
+                setDraft({
+                  title: "",
+                  date,
+                  time,
+                  duration: 30,
+                  goalId: filter === "all" ? "" : filter,
+                  note: "",
+                })
+              }
+              onMove={moveTask}
             />
           )}
-          <div className="mt-4">
-            {mineTasks.filter((x) => x.date === activeCursor).length === 0 ? (
-              <p className="text-sm text-muted">{t("calendar.emptyDay")}</p>
-            ) : (
-              mineTasks
-                .filter((x) => x.date === activeCursor)
-                .map((task) => (
-                  <div key={task.id} onClick={() => setDrawer(task)}>
-                    <TaskRow task={task} />
-                  </div>
-                ))
-            )}
-          </div>
-        </Card>
-      )}
-
-      <div className="mt-6">
-        <p className="text-xs text-faint">{t("calendar.legend")}</p>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {mine.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setFilter(filter === g.id ? "all" : g.id)}
-              className="flex items-center gap-2 text-sm text-muted"
-            >
-              <i className="h-2 w-2 rounded-full" style={{ background: g.color }} />
-              {g.title}
-            </button>
-          ))}
-        </div>
+        </section>
       </div>
+
+      {draft ? (
+        <div className="fixed inset-0 z-[85] flex items-start justify-center bg-black/50 pt-[12vh]">
+          <button className="absolute inset-0" aria-label={t("common.close")} onClick={() => setDraft(null)} />
+          <div className="relative z-10">
+            <EventComposer
+              draft={draft}
+              goals={mine}
+              onChange={setDraft}
+              onSave={saveDraft}
+              onClose={() => setDraft(null)}
+              onMore={
+                draft.id
+                  ? () => {
+                      setDrawerId(draft.id ?? null);
+                      setDraft(null);
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+      ) : null}
 
       {drawer ? (
         <div className="fixed inset-0 z-[70] flex justify-end">
-          <button className="flex-1 bg-black/50" onClick={() => setDrawer(null)} aria-label={t("common.close")} />
+          <button className="flex-1 bg-black/50" onClick={() => setDrawerId(null)} aria-label={t("common.close")} />
           <aside className="h-full w-full max-w-md overflow-y-auto border-l border-white/[0.06] bg-surface p-5">
             <div className="mb-4 flex justify-between">
               <h3 className="font-display text-xl">{t("calendar.detail")}</h3>
-              <button onClick={() => setDrawer(null)} className="text-faint">
+              <button onClick={() => setDrawerId(null)} className="text-faint">
                 {t("common.close")}
               </button>
             </div>
-            <Field
-              label={t("calendar.taskName")}
-              value={drawer.title}
-              onChange={(e) => setDrawer({ ...drawer, title: e.target.value })}
-              onBlur={() => {
-                if (!drawer) return;
-                const live = tasks.find((x) => x.id === drawer.id);
-                if (!live || live.title === drawer.title) return;
-                if (drawer.goalId) {
-                  setPendingPatch({ title: drawer.title });
-                  setScopeOpen(true);
-                } else {
-                  updateTask(drawer.id, { title: drawer.title });
-                }
-              }}
-            />
-            <div className="mt-3">
-              <Field
-                label={t("common.note")}
-                value={drawer.note}
-                onChange={(e) => {
-                  setDrawer({ ...drawer, note: e.target.value });
-                  updateTask(drawer.id, { note: e.target.value });
-                }}
-              />
-            </div>
-            <label className="mt-3 block space-y-1.5">
-              <span className="text-sm text-muted">{t("calendar.date")}</span>
-              <input
-                type="date"
-                className="w-full px-3 py-2.5"
-                value={drawer.date}
-                onChange={(e) => {
-                  moveTask(drawer.id, e.target.value);
-                  setDrawer({ ...drawer, date: e.target.value });
-                }}
-              />
-            </label>
-            <label className="mt-3 block space-y-1.5">
-              <span className="text-sm text-muted">{t("calendar.attachGoal")}</span>
-              <select
-                className="w-full rounded-chip bg-raised px-3 py-2.5"
-                value={drawer.goalId ?? ""}
-                onChange={(e) => {
-                  const goalId = e.target.value || null;
-                  updateTask(drawer.id, { goalId });
-                  setDrawer({ ...drawer, goalId });
-                }}
-              >
-                <option value="">{t("calendar.noGoal")}</option>
-                {mine.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.title}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <TaskDetail task={drawer} today={today} />
           </aside>
         </div>
       ) : null}
-
-      {palette ? (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/50 pt-[15vh]">
-          <div className="w-[min(32rem,92vw)] rounded-nest border border-white/[0.06] bg-surface p-3">
-            <p className="px-2 pb-2 text-xs text-faint">{t("calendar.paletteTitle")}</p>
-            <input
-              autoFocus
-              className="w-full px-3 py-2"
-              placeholder={t("common.search")}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setPalette(false);
-              }}
-            />
-            <div className="mt-2">
-              <button
-                className="block w-full rounded-chip px-3 py-2 text-left text-sm hover:bg-raised"
-                onClick={() => {
-                  setPalette(false);
-                  setCursor(today);
-                  setView("day");
-                  setInline(today);
-                }}
-              >
-                {t("calendar.paletteAdd")}
-              </button>
-              <button
-                className="block w-full rounded-chip px-3 py-2 text-left text-sm hover:bg-raised"
-                onClick={() => {
-                  setCursor(today);
-                  setPalette(false);
-                }}
-              >
-                {t("calendar.paletteToday")}
-              </button>
-              {mine
-                .filter((g) => g.title.toLowerCase().includes(query.toLowerCase()))
-                .map((g) => (
-                  <button
-                    key={g.id}
-                    className="block w-full rounded-chip px-3 py-2 text-left text-sm hover:bg-raised"
-                    onClick={() => {
-                      setFilter(g.id);
-                      setPalette(false);
-                    }}
-                  >
-                    {t("calendar.paletteGoal")} · {g.title}
-                  </button>
-                ))}
-              {mineTasks
-                .filter((x) => x.title.toLowerCase().includes(query.toLowerCase()))
-                .slice(0, 8)
-                .map((task) => (
-                  <button
-                    key={task.id}
-                    className="block w-full rounded-chip px-3 py-2 text-left text-sm hover:bg-raised"
-                    onClick={() => {
-                      setDrawer(task);
-                      setPalette(false);
-                    }}
-                  >
-                    {task.title}
-                  </button>
-                ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <Modal open={scopeOpen} onClose={() => setScopeOpen(false)} title={t("calendar.scopeTitle")}>
-        <div className="flex flex-col gap-2">
-          <Button
-            tone="ghost"
-            onClick={() => {
-              if (drawer && pendingPatch) updateTaskSeries(drawer.id, pendingPatch, "one");
-              setScopeOpen(false);
-              setPendingPatch(null);
-            }}
-          >
-            {t("calendar.scopeOne")}
-          </Button>
-          <Button
-            onClick={() => {
-              if (drawer && pendingPatch) updateTaskSeries(drawer.id, pendingPatch, "future");
-              setScopeOpen(false);
-              setPendingPatch(null);
-            }}
-          >
-            {t("calendar.scopeFuture")}
-          </Button>
-        </div>
-      </Modal>
     </main>
   );
 }

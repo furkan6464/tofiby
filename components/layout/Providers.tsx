@@ -1,13 +1,17 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useApp, useSession } from "@/lib/store";
+import { useApp, useSession, useTodayBundle } from "@/lib/store";
+import { todayKey } from "@/lib/dates";
+import { reminderPayloads } from "@/lib/reminders";
+import { t } from "@/lib/i18n";
 import { ToastStack } from "../ui/ToastStack";
-import { CreatureWidget } from "../creature/CreatureWidget";
 import { HatchCeremony } from "../creature/HatchCeremony";
-import { Nav } from "./Nav";
+import { TogetherCeremony } from "../creature/TogetherCeremony";
+import { LetterMoment } from "../creature/LetterMoment";
+import { AppShell } from "./AppShell";
 
 const queryClient = new QueryClient();
 const PUBLIC = new Set(["/", "/giris", "/kayit"]);
@@ -25,11 +29,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
         useApp.getState().finalizePending();
       }
     };
+    const onOnline = () => useApp.getState().flushOffline();
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
-    return () => document.removeEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+    };
   }, []);
 
   if (!ready) {
@@ -72,10 +81,54 @@ function Gate({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {appChrome ? <Nav /> : null}
-      <div className={appChrome ? "pt-10 md:pl-[13.5rem] md:pt-0" : ""}>{children}</div>
-      {appChrome ? <CreatureWidget /> : null}
+      {appChrome ? <AppShell>{children}</AppShell> : children}
+      <ReminderWatcher />
       <HatchCeremony />
+      <TogetherCeremony />
+      <LetterMoment />
     </>
   );
+}
+
+function ReminderWatcher() {
+  const user = useSession();
+  const { tasks, date } = useTodayBundle();
+  const seen = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!user || !date) return;
+    const tick = () => {
+      const due = reminderPayloads({
+        tasks,
+        timezone: user.timezone,
+        today: todayKey(user.timezone),
+        seen: seen.current,
+      });
+      for (const item of due) {
+        seen.current.add(item.key);
+        const body =
+          item.body.kind === "soon"
+            ? t("remind.soon", { task: item.body.task ?? "" })
+            : item.body.kind === "now"
+              ? t("remind.now", { task: item.body.task ?? "" })
+              : t("remind.streak", { need: item.body.need ?? 0 });
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          if (navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "notify",
+              title: item.title,
+              body,
+            });
+          } else {
+            new Notification(item.title, { body });
+          }
+        }
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+  }, [user, tasks, date]);
+
+  return null;
 }

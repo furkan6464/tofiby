@@ -12,14 +12,24 @@ export function consistencyMultiplier(streak: number): number {
   return 1 + GAME_CONFIG.CONSISTENCY_K * Math.log(streak + 1);
 }
 
+export function activeDayTasks(tasks: Task[]): Task[] {
+  return tasks.filter((t) => t.status !== "postponed");
+}
+
 export function dailyCompletionScore(tasks: Task[]): number | null {
-  if (tasks.length === 0) return null;
-  const planned = tasks.reduce((sum, t) => sum + t.weight, 0);
+  const active = activeDayTasks(tasks);
+  if (active.length === 0) return null;
+  const planned = active.reduce((sum, t) => sum + t.weight, 0);
   if (planned <= 0) return null;
-  const done = tasks
-    .filter((t) => t.completed)
+  const done = active
+    .filter((t) => t.completed || t.status === "done")
     .reduce((sum, t) => sum + t.weight, 0);
   return done / planned;
+}
+
+/** Reporting-only DCS for one goal. Does not affect GP or evolution. */
+export function dcsForGoal(tasks: Task[], goalId: string): number | null {
+  return dailyCompletionScore(tasks.filter((t) => t.goalId === goalId));
 }
 
 export function isStreakDay(dcs: number | null): boolean {
@@ -216,6 +226,7 @@ export function applyDayFinalization(input: {
   health: HealthStatus;
   consecutiveZeroDays: number;
   recoveryStreak: number;
+  isRestDay?: boolean;
 }): {
   currentStreak: number;
   longestStreak: number;
@@ -229,6 +240,21 @@ export function applyDayFinalization(input: {
   consecutiveZeroDays: number;
   recoveryStreak: number;
 } {
+  if (input.isRestDay) {
+    return {
+      currentStreak: input.currentStreak,
+      longestStreak: input.longestStreak,
+      totalGp: input.totalGp,
+      gpEarned: 0,
+      isStreakDay: false,
+      hatched: input.hatched,
+      justHatched: false,
+      stage: stageForGp(input.totalGp, input.hatched),
+      health: input.health,
+      consecutiveZeroDays: input.consecutiveZeroDays,
+      recoveryStreak: input.recoveryStreak,
+    };
+  }
   const health = nextHealth({
     health: input.health,
     consecutiveZeroDays: input.consecutiveZeroDays,
@@ -260,7 +286,18 @@ export function scoreFromTasks(
   tasks: Task[],
   streakBefore: number,
   frozen = false,
+  isRestDay = false,
 ): DailyScore {
+  if (isRestDay) {
+    return {
+      userId,
+      date,
+      dcs: null,
+      isStreakDay: false,
+      gpEarned: 0,
+      finalized: false,
+    };
+  }
   const dcs = dailyCompletionScore(tasks);
   const streakAfter = nextStreak(streakBefore, dcs);
   return {

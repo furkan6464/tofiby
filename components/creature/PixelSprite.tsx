@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { GAME_CONFIG } from "@/lib/gameConfig";
 import type { CreatureFrames, Palette, SpriteState } from "@/data/creatures/types";
 import { GRID } from "@/data/creatures/types";
+import type { MicroAnim } from "@/lib/types";
 
 export function PixelSprite({
   frames,
@@ -11,12 +12,14 @@ export function PixelSprite({
   pixelSize = 6,
   state = "idle",
   className = "",
+  microAnim = "none",
 }: {
   frames: CreatureFrames;
   palette: Palette;
   pixelSize?: number;
   state?: SpriteState;
   className?: string;
+  microAnim?: MicroAnim;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef(state);
@@ -41,9 +44,10 @@ export function PixelSprite({
     let override: SpriteState | null = null;
     let nextBlink = performance.now() + rand(GAME_CONFIG.IDLE_BLINK_MIN_MS, GAME_CONFIG.IDLE_BLINK_MAX_MS);
     let nextAmbient = performance.now() + rand(GAME_CONFIG.AMBIENT_MOVE_MIN_MS, GAME_CONFIG.AMBIENT_MOVE_MAX_MS);
-    const fps =
-      stateRef.current === "sick" ? GAME_CONFIG.SICK_SPRITE_FPS : GAME_CONFIG.SPRITE_FPS;
+    const slow = stateRef.current === "sick" || stateRef.current === "sleepy";
+    const fps = slow ? GAME_CONFIG.SICK_SPRITE_FPS : GAME_CONFIG.SPRITE_FPS;
     const step = 1000 / fps;
+    let doubleBlink = false;
 
     const draw = (frame: (keyof Palette | null)[][]) => {
       const size = pixelSize;
@@ -66,19 +70,33 @@ export function PixelSprite({
       last = now;
       const forced = stateRef.current;
       const sick = forced === "sick";
-      if (forced !== "idle" && forced !== "sleepy" && forced !== "sick") {
+      const worried = forced === "worried";
+      const locked = sick || forced === "sleepy" || worried;
+      if (forced !== "idle" && forced !== "sleepy" && forced !== "sick" && forced !== "worried") {
         override = forced;
         overrideUntil = now + 700;
       }
       if (forced === "sleepy") override = "sleepy";
       if (sick) override = "sick";
-      if (!sick && now > nextBlink && !override) {
+      if (worried) override = "worried";
+      if (!locked && now > nextBlink && !override) {
         override = "blink";
-        overrideUntil = now + 220;
-        nextBlink = now + rand(GAME_CONFIG.IDLE_BLINK_MIN_MS, GAME_CONFIG.IDLE_BLINK_MAX_MS);
+        overrideUntil = now + (microAnim === "cift_kirpma" || doubleBlink ? 180 : 220);
+        if (microAnim === "cift_kirpma" && !doubleBlink) {
+          doubleBlink = true;
+          nextBlink = now + 260;
+        } else {
+          doubleBlink = false;
+          nextBlink = now + rand(GAME_CONFIG.IDLE_BLINK_MIN_MS, GAME_CONFIG.IDLE_BLINK_MAX_MS);
+        }
       }
-      if (!sick && now > nextAmbient && !override) {
-        override = Math.random() > 0.5 ? "look" : "yawn";
+      if (!locked && now > nextAmbient && !override) {
+        override =
+          microAnim === "kuyruk_sallama"
+            ? "bounce"
+            : Math.random() > 0.5
+              ? "look"
+              : "yawn";
         overrideUntil = now + 640;
         nextAmbient = now + rand(GAME_CONFIG.AMBIENT_MOVE_MIN_MS, GAME_CONFIG.AMBIENT_MOVE_MAX_MS);
       }
@@ -90,7 +108,15 @@ export function PixelSprite({
       }
 
       const bank = framesRef.current;
-      const mode: SpriteState = override ?? (forced === "sleepy" ? "sleepy" : sick ? "sick" : "idle");
+      const mode: SpriteState =
+        override ??
+        (forced === "sleepy"
+          ? "sleepy"
+          : sick
+            ? "sick"
+            : worried
+              ? "worried"
+              : "idle");
       const strip = bank[mode] ?? bank.idle;
       const frame = strip[idleIndex % strip.length] ?? bank.idle[0];
       draw(frame);
@@ -99,7 +125,7 @@ export function PixelSprite({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [pixelSize, state]);
+  }, [pixelSize, state, microAnim]);
 
   return (
     <canvas
@@ -109,6 +135,7 @@ export function PixelSprite({
         width: GRID * pixelSize,
         height: GRID * pixelSize,
         imageRendering: "pixelated",
+        transform: microAnim === "minik_donus" && state === "idle" ? "rotate(-4deg)" : undefined,
       }}
     />
   );

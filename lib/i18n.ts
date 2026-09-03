@@ -1,4 +1,5 @@
 import tr from "@/locales/tr.json";
+import { createRng, seedFrom } from "./genetics";
 
 type Dict = typeof tr;
 
@@ -42,6 +43,13 @@ export function friendName(named?: string | null): string {
   const n = named?.trim();
   if (n && n !== t("creature.unnamed") && n !== t("friend.unnamed")) return n;
   return t("friend.genericTiny");
+}
+
+export function pickDaily(key: MessageKey | string, salt: string[]): string {
+  const list = tList(key);
+  if (list.length === 0) return "";
+  const rng = createRng(seedFrom(salt));
+  return list[Math.floor(rng.next() * list.length)];
 }
 
 export { tr };

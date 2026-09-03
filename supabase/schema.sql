@@ -34,7 +34,15 @@ create table if not exists public.creatures (
   spouse_creature_name text,
   married_at timestamptz,
   created_at date not null default current_date,
-  retired_at date
+  retired_at date,
+  parent_a_id uuid,
+  parent_b_id uuid,
+  generation int not null default 1,
+  genetics jsonb not null default '{}'::jsonb,
+  egg_shell_variant text,
+  rare_mutation boolean not null default false,
+  unlocked_room_items text[] not null default '{}',
+  letters jsonb not null default '[]'::jsonb
 );
 
 create table if not exists public.goals (
@@ -149,3 +157,48 @@ create policy "own notices" on public.notices for all using (user_id = auth.uid(
 create policy "own offspring" on public.offspring_log for select using (
   exists (select 1 from public.pairs p where p.id = pair_id and (p.user_a = auth.uid() or p.user_b = auth.uid()))
 );
+
+-- Wave A: goal / task richness (local store is live; this keeps the remote schema ready)
+alter table public.goals add column if not exists start_date date;
+alter table public.goals add column if not exists weekly_frequency int;
+alter table public.goals add column if not exists daily_duration_minutes int;
+alter table public.profiles add column if not exists weekly_review_seen text;
+alter table public.profiles add column if not exists soft_day_caps jsonb not null default '{}'::jsonb;
+
+alter table public.tasks add column if not exists milestone_id uuid;
+alter table public.tasks add column if not exists time text;
+alter table public.tasks add column if not exists description text not null default '';
+alter table public.tasks add column if not exists estimated_duration_minutes int;
+alter table public.tasks add column if not exists priority text not null default 'medium';
+alter table public.tasks add column if not exists tag text;
+alter table public.tasks add column if not exists repeat_pattern jsonb;
+alter table public.tasks add column if not exists checklist_items jsonb not null default '[]'::jsonb;
+alter table public.tasks add column if not exists reminder_offset_minutes int;
+alter table public.tasks add column if not exists status text not null default 'pending';
+alter table public.tasks add column if not exists postponed_to_date date;
+
+create table if not exists public.milestones (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null references public.goals(id) on delete cascade,
+  title text not null,
+  order_index int not null default 0,
+  weight numeric not null default 1,
+  completed_at timestamptz
+);
+
+create table if not exists public.busy_slots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  date date not null,
+  start_min int not null,
+  end_min int not null,
+  source text not null default 'app' check (source in ('app', 'external')),
+  title text
+);
+
+alter table public.milestones enable row level security;
+alter table public.busy_slots enable row level security;
+create policy "own milestones" on public.milestones for all using (
+  exists (select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid())
+);
+create policy "own busy slots" on public.busy_slots for all using (user_id = auth.uid()) with check (user_id = auth.uid());

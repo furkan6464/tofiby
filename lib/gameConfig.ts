@@ -40,6 +40,7 @@ export const GAME_CONFIG = {
   SICK_TRIGGER_ZERO_DAYS: 7,
   SICK_RECOVERY_STREAK_DAYS: 3,
   SICK_RECOVERY_DCS_THRESHOLD: 0.6,
+  MAX_REST_DAYS_PER_WEEK: 1,
 } as const;
 
 export type CreatureStage = "egg" | "baby" | "child" | "teen" | "adult" | "elder";
