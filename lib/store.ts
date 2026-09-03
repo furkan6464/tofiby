@@ -15,6 +15,7 @@ import {
   scoreFromTasks,
   unionBarPct,
 } from "./growthEngine";
+import { resolvedGender, speciesGender } from "@/data/species/catalog";
 import { assignHiddenEggSpecies, breedOffspring, defaultGenetics, eggShellVariant } from "./genetics";
 import {
   addDays,
@@ -31,6 +32,7 @@ import { celebrate } from "./confetti";
 import type {
   BusySlot,
   Creature,
+  CreatureGender,
   DailyScore,
   FrequencyPattern,
   Friendship,
@@ -136,6 +138,7 @@ interface AppState {
     goals: DraftGoal[];
     speciesId?: SpeciesId;
     hueShift?: number;
+    gender?: CreatureGender;
   }) => void;
   addGoal: (draft: DraftGoal) => void;
   updateGoal: (id: string, patch: Partial<Goal>) => void;
@@ -187,14 +190,15 @@ interface AppState {
   cancelCompanion: (id: string) => void;
 }
 
-function makeEgg(ownerId: string, name: string): Creature {
+function makeEgg(ownerId: string, name: string, gender: CreatureGender = "kiz"): Creature {
   const now = new Date().toISOString();
-  const gene = assignHiddenEggSpecies(ownerId, now);
+  const gene = assignHiddenEggSpecies(ownerId, now, gender);
   return {
     id: uid(),
     ownerId,
     name,
     speciesId: gene.speciesId,
+    gender,
     stage: "egg",
     totalGp: 0,
     currentStreak: 0,
@@ -455,14 +459,16 @@ export const useApp = create<AppState>()(
           ],
         });
       },
-      completeOnboarding: ({ creatureName, goals: drafts, speciesId, hueShift }) => {
+      completeOnboarding: ({ creatureName, goals: drafts, speciesId, hueShift, gender }) => {
         const user = currentUser(get());
         if (!user) return;
         const today = todayKey(user.timezone);
         const horizon = addDays(today, GAME_CONFIG.TASK_HORIZON_DAYS);
-        const creature = makeEgg(user.id, creatureName.trim() || t("creature.unnamed"));
+        const pickedGender = gender ?? (speciesId ? speciesGender(speciesId) : "kiz");
+        const creature = makeEgg(user.id, creatureName.trim() || t("creature.unnamed"), pickedGender);
         if (speciesId) {
           creature.speciesId = speciesId;
+          creature.gender = speciesGender(speciesId);
           creature.genetics = defaultGenetics(speciesId, creature.hueShift, [user.id, creature.id]);
           creature.eggShellVariant = eggShellVariant(speciesId, creature.hueShift);
         }
@@ -978,6 +984,7 @@ export const useApp = create<AppState>()(
           const a = creatures.find((c) => c.id === pair.creatureAId && c.status === "active");
           const b = creatures.find((c) => c.id === pair.creatureBId && c.status === "active");
           if (!a || !b) continue;
+          if (resolvedGender(a) === resolvedGender(b)) continue;
           if (
             !isUnionReady(
               a.adultReachedAt,
@@ -1013,10 +1020,12 @@ export const useApp = create<AppState>()(
             marriedAt: bornAt,
           });
           const eggFor = (ownerId: string, parentName: string): Creature => {
-            const egg = makeEgg(ownerId, parentName);
+            const childGender = speciesGender(child.speciesId);
+            const egg = makeEgg(ownerId, parentName, childGender);
             return {
               ...egg,
               speciesId: child.speciesId,
+              gender: childGender,
               hueShift: child.hueShift,
               genetics: child.genetics,
               parentAId: a.id,
@@ -1262,6 +1271,9 @@ export const useApp = create<AppState>()(
           (c) => c.ownerId === friendUserId && c.status === "active",
         );
         if (!mine || !theirs) return { ok: false, error: t("community.needAdult") };
+        if (resolvedGender(mine) === resolvedGender(theirs)) {
+          return { ok: false, error: t("community.needOpposite") };
+        }
         if (
           !isUnionReady(
             mine.adultReachedAt,
@@ -1491,7 +1503,7 @@ export const useApp = create<AppState>()(
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 5,
+      version: 6,
       migrate: (persisted) => {
         const p = persisted as {
           creatures?: Creature[];
@@ -1613,6 +1625,7 @@ function normalizeCreature(c: Creature): Creature {
   const hue = c.hueShift ?? 330;
   return {
     ...c,
+    gender: resolvedGender(c),
     hatchedAt: c.hatchedAt ?? (c.stage !== "egg" ? c.createdAt : null),
     health: c.health ?? "active",
     consecutiveZeroDays: c.consecutiveZeroDays ?? 0,

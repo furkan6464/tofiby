@@ -7,7 +7,7 @@ import { GOAL_COLORS } from "@/lib/goalColors";
 import { speciesHue } from "@/data/species/catalog";
 import { assignHiddenEggSpecies } from "@/lib/genetics";
 import { useApp } from "@/lib/store";
-import type { FrequencyPattern, SpeciesId } from "@/lib/types";
+import type { CreatureGender, FrequencyPattern, SpeciesId } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { CreatureView } from "@/components/creature/CreatureView";
@@ -42,9 +42,9 @@ type Hidden = { speciesId: SpeciesId; hueShift: number };
 /** Onboarding slaytlarında yeni karakterleri tanıt — kullanıcının gizli türü yumurtada kalır. */
 const SHOWCASE: Partial<Record<CreatureStage, SpeciesId>> = {
   baby: "tofiby",
-  child: "bulut",
+  child: "ruji",
   teen: "yildiz",
-  adult: "gizem",
+  adult: "kalyoz",
 };
 
 export default function OnboardingPage() {
@@ -52,6 +52,7 @@ export default function OnboardingPage() {
   const finish = useApp((s) => s.completeOnboarding);
   const sessionId = useApp((s) => s.sessionUserId);
   const [step, setStep] = useState(0);
+  const [gender, setGender] = useState<CreatureGender | null>(null);
   const [name, setName] = useState("");
   const [hidden, setHidden] = useState<Hidden | null>(null);
   const [goals, setGoals] = useState<Draft[]>([emptyGoal(GOAL_COLORS[0])]);
@@ -59,9 +60,10 @@ export default function OnboardingPage() {
   const friend = name.trim() || t("friend.genericTiny");
 
   function goNameNext() {
-    const gene = assignHiddenEggSpecies(sessionId ?? "anon", new Date().toISOString());
+    if (!gender) return;
+    const gene = assignHiddenEggSpecies(sessionId ?? "anon", new Date().toISOString(), gender);
     setHidden(gene);
-    setStep(2);
+    setStep(3);
   }
 
   const slides: { stage: CreatureStage; title: string; body: string }[] = [
@@ -107,6 +109,45 @@ export default function OnboardingPage() {
 
       {step === 1 ? (
         <div className="max-w-lg">
+          <h1 className="font-display text-4xl">{t("onboarding.genderTitle")}</h1>
+          <p className="mt-2 text-sm text-muted">{t("onboarding.genderHint")}</p>
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            {(
+              [
+                ["kiz", "onboarding.genderGirl", "text-pink"],
+                ["erkek", "onboarding.genderBoy", "text-violet"],
+              ] as const
+            ).map(([value, label, tone]) => {
+              const selected = gender === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setGender(value)}
+                  className={`min-h-[11rem] rounded-panel border px-5 py-6 text-left transition ${
+                    selected
+                      ? "border-white/40 bg-raised"
+                      : "border-white/[0.06] bg-surface"
+                  }`}
+                >
+                  <p className={`font-display text-3xl ${tone}`}>{t(label)}</p>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-8 flex gap-3">
+            <Button tone="ghost" onClick={() => setStep(0)}>
+              {t("common.back")}
+            </Button>
+            <Button onClick={() => setStep(2)} disabled={!gender}>
+              {t("common.continue")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 2 ? (
+        <div className="max-w-lg">
           <h1 className="font-display text-4xl">{t("onboarding.nameTitle")}</h1>
           <p className="mt-2 text-sm text-muted">{t("onboarding.nameHint")}</p>
           <div className="mt-8">
@@ -119,17 +160,17 @@ export default function OnboardingPage() {
             />
           </div>
           <div className="mt-8 flex gap-3">
-            <Button tone="ghost" onClick={() => setStep(0)}>
+            <Button tone="ghost" onClick={() => setStep(1)}>
               {t("common.back")}
             </Button>
-            <Button onClick={goNameNext} disabled={!name.trim()}>
+            <Button onClick={goNameNext} disabled={!name.trim() || !gender}>
               {t("common.continue")}
             </Button>
           </div>
         </div>
       ) : null}
 
-      {step === 2 ? (
+      {step === 3 ? (
         <div className="fixed inset-0 z-20 flex flex-col items-center justify-center bg-[var(--bg-base)] px-5 text-center">
           <CreatureView
             speciesId={hidden?.speciesId ?? "tofiby"}
@@ -142,34 +183,34 @@ export default function OnboardingPage() {
           </h1>
           <p className="mt-3 text-muted">{t("onboarding.eggRevealHint")}</p>
           <div className="mt-10 flex gap-3">
-            <Button tone="ghost" onClick={() => setStep(1)}>
+            <Button tone="ghost" onClick={() => setStep(2)}>
               {t("common.back")}
             </Button>
-            <Button onClick={() => setStep(3)}>{t("common.continue")}</Button>
+            <Button onClick={() => setStep(4)}>{t("common.continue")}</Button>
           </div>
         </div>
       ) : null}
 
-      {step >= 3 && step <= 7 ? (
+      {step >= 4 && step <= 8 ? (
         <Slide
-          stage={slides[step - 3].stage}
-          title={slides[step - 3].title}
-          body={slides[step - 3].body}
+          stage={slides[step - 4].stage}
+          title={slides[step - 4].title}
+          body={slides[step - 4].body}
           speciesId={
-            SHOWCASE[slides[step - 3].stage] ?? hidden?.speciesId ?? "tofiby"
+            SHOWCASE[slides[step - 4].stage] ?? hidden?.speciesId ?? "tofiby"
           }
           hueShift={
-            SHOWCASE[slides[step - 3].stage]
-              ? speciesHue(SHOWCASE[slides[step - 3].stage]!)
+            SHOWCASE[slides[step - 4].stage]
+              ? speciesHue(SHOWCASE[slides[step - 4].stage]!)
               : (hidden?.hueShift ?? 330)
           }
-          warn={step === 7}
+          warn={step === 8}
           onBack={() => setStep(step - 1)}
           onNext={() => setStep(step + 1)}
         />
       ) : null}
 
-      {step === 8 ? (
+      {step === 9 ? (
         <div className="space-y-6">
           <h1 className="font-display text-3xl">{t("onboarding.goalTitle")}</h1>
           <p className="text-sm text-muted">{t("onboarding.goalHint")}</p>
@@ -302,7 +343,7 @@ export default function OnboardingPage() {
             {t("onboarding.addGoal")}
           </button>
           <div className="flex gap-3">
-            <Button tone="ghost" onClick={() => setStep(7)}>
+            <Button tone="ghost" onClick={() => setStep(8)}>
               {t("common.back")}
             </Button>
             <Button
@@ -312,6 +353,7 @@ export default function OnboardingPage() {
                   creatureName: name,
                   speciesId: hidden?.speciesId,
                   hueShift: hidden?.hueShift,
+                  gender: gender ?? undefined,
                   goals: goals.map((g) => ({
                     ...g,
                     startDate: g.startDate || null,

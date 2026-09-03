@@ -15,6 +15,11 @@ function yildiz(kind: "baby" | "child" | "teen" | "adult" | "elder"): PixelFrame
 
   spark(g, 16, headY - 9);
   ink(g, 16, headY - 6, "accent");
+  if (kind === "adult" || kind === "elder") {
+    ink(g, 16, headY - 11, "accent");
+    ink(g, 15, headY - 10, "accent");
+    ink(g, 17, headY - 10, "accent");
+  }
 
   eyes(g, 13, 19, headY, baby ? 2.2 : 1.9);
   blush(g, 11, 21, headY + 3);

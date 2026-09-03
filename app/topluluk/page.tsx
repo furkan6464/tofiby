@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { t } from "@/lib/i18n";
 import { GAME_CONFIG } from "@/lib/gameConfig";
 import { todayKey } from "@/lib/dates";
+import { resolvedGender } from "@/data/species/catalog";
 import { isUnionReady } from "@/lib/growthEngine";
 import { stageLabel, useApp, useSession } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
@@ -149,6 +150,7 @@ export default function CommunityPage() {
               const canBond =
                 myCreature &&
                 creature &&
+                resolvedGender(myCreature) !== resolvedGender(creature) &&
                 isUnionReady(
                   myCreature.adultReachedAt,
                   myCreature.adultGpSnapshot,

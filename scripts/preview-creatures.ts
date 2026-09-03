@@ -7,7 +7,17 @@ import { speciesHue } from "../data/species/catalog";
 import type { SpeciesId } from "../lib/types";
 import type { CreatureStage } from "../lib/gameConfig";
 
-const SPECIES: SpeciesId[] = ["tofiby", "bulut", "yildiz", "gizem", "isilti"];
+const SPECIES: SpeciesId[] = [
+  "tofiby",
+  "bulut",
+  "yildiz",
+  "ruji",
+  "gizem",
+  "kalyoz",
+  "burku",
+  "podo",
+  "isilti",
+];
 const STAGES: CreatureStage[] = ["egg", "baby", "child", "teen", "adult", "elder"];
 const SCALE = 8;
 const OUT = join(process.cwd(), "scripts", "_preview");

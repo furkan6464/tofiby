@@ -1,7 +1,18 @@
 import type { CreatureStage, HealthStatus } from "./gameConfig";
 
 export type { HealthStatus };
-export type SpeciesId = "tofiby" | "bulut" | "yildiz" | "gizem" | "isilti";
+export type CreatureGender = "kiz" | "erkek";
+
+export type SpeciesId =
+  | "tofiby"
+  | "bulut"
+  | "yildiz"
+  | "gizem"
+  | "isilti"
+  | "ruji"
+  | "kalyoz"
+  | "burku"
+  | "podo";
 
 export type CreatureStatus = "active" | "retired";
 export type GoalStatus = "active" | "archived";
@@ -59,6 +70,7 @@ export interface Creature {
   ownerId: string;
   name: string;
   speciesId: SpeciesId;
+  gender: CreatureGender;
   stage: CreatureStage;
   totalGp: number;
   currentStreak: number;

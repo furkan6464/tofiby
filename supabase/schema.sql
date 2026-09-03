@@ -21,6 +21,7 @@ create table if not exists public.creatures (
   owner_id uuid not null references public.profiles(id) on delete cascade,
   name text not null,
   species_id text not null,
+  gender text not null default 'kiz' check (gender in ('kiz', 'erkek')),
   stage text not null default 'egg',
   total_gp numeric not null default 0,
   current_streak int not null default 0,

@@ -32,6 +32,13 @@ export function makeAnims(base: PixelFrame): CreatureFrames {
   };
 }
 
+/** Rock-still idle: only a 1px shoulder lift. */
+export function makeStillAnims(base: PixelFrame): CreatureFrames {
+  const frames = makeAnims(base);
+  frames.idle = [base, base, shiftFrame(base, 0, -1)];
+  return frames;
+}
+
 export function makeEggAnims(base: PixelFrame, cracks: PixelFrame[] = []): CreatureFrames {
   const left = shiftFrame(base, -1, 0);
   const right = shiftFrame(base, 1, 0);

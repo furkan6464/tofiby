@@ -73,6 +73,31 @@ const ISILTI = speckled([
   [13, 18],
   [19, 18],
 ]);
+const RUJI = speckled([
+  [12, 12],
+  [20, 12],
+  [16, 10],
+  [15, 16],
+  [18, 19],
+]);
+const KALYOZ = speckled([
+  [13, 14],
+  [19, 14],
+  [16, 18],
+]);
+const BURKU = speckled([
+  [14, 13],
+  [18, 13],
+  [16, 17],
+  [16, 20],
+]);
+const PODO = speckled([
+  [13, 13],
+  [19, 13],
+  [16, 16],
+  [14, 19],
+  [18, 19],
+]);
 
 function pack(base: PixelFrame): CreatureFrames {
   return makeEggAnims(base, [crack(base, false), crack(base, true)]);
@@ -84,4 +109,8 @@ export const EGG_FRAMES: Record<string, CreatureFrames> = {
   yildiz: pack(YILDIZ),
   gizem: pack(GIZEM),
   isilti: pack(ISILTI),
+  ruji: pack(RUJI),
+  kalyoz: pack(KALYOZ),
+  burku: pack(BURKU),
+  podo: pack(PODO),
 };

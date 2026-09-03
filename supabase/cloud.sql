@@ -81,3 +81,5 @@ create policy "send notices" on public.notices for insert with check (
 
 create unique index if not exists friendships_unordered_pair
   on public.friendships (least(user_a, user_b), greatest(user_a, user_b));
+
+alter table public.creatures add column if not exists gender text not null default 'kiz';

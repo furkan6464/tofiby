@@ -2,6 +2,7 @@ import { GAME_CONFIG } from "./gameConfig";
 import { mutationSpecies, speciesHue, starterSpecies } from "@/data/species/catalog";
 import type {
   Accessory,
+  CreatureGender,
   EarForm,
   EyeShape,
   Genetics,
@@ -124,6 +125,42 @@ export function speciesDefaults(speciesId: SpeciesId): Omit<Genetics, "hueShift"
       accessory: "cil",
     };
   }
+  if (speciesId === "ruji") {
+    return {
+      eyeShape: "yuvarlak",
+      earForm: "sivri",
+      signature: "kalp_yanak",
+      microAnim: "cift_kirpma",
+      accessory: "fiyonk",
+    };
+  }
+  if (speciesId === "kalyoz") {
+    return {
+      eyeShape: "badem",
+      earForm: "dusuk",
+      signature: "none",
+      microAnim: "none",
+      accessory: "cil",
+    };
+  }
+  if (speciesId === "burku") {
+    return {
+      eyeShape: "oval",
+      earForm: "sivri",
+      signature: "minik_boynuz",
+      microAnim: "none",
+      accessory: "none",
+    };
+  }
+  if (speciesId === "podo") {
+    return {
+      eyeShape: "yuvarlak",
+      earForm: "yuvarlak",
+      signature: "none",
+      microAnim: "kuyruk_sallama",
+      accessory: "none",
+    };
+  }
   return {
     eyeShape: "yildiz",
     earForm: "antenli",
@@ -199,15 +236,20 @@ export const SPECIES_BASE_HUE: Record<SpeciesId, number> = {
   yildiz: speciesHue("yildiz"),
   gizem: speciesHue("gizem"),
   isilti: speciesHue("isilti"),
+  ruji: speciesHue("ruji"),
+  kalyoz: speciesHue("kalyoz"),
+  burku: speciesHue("burku"),
+  podo: speciesHue("podo"),
 };
 
 export function assignHiddenEggSpecies(
   userId: string,
   at: string,
+  gender: CreatureGender = "kiz",
 ): { speciesId: SpeciesId; hueShift: number; genetics: Genetics } {
-  const rng = createRng(seedFrom([userId, at, "hatch"]));
-  const pool = BASE_SPECIES;
-  const species = pool[Math.floor(rng.next() * pool.length)];
+  const rng = createRng(seedFrom([userId, at, "hatch", gender]));
+  const pool = starterSpecies(gender);
+  const species = pool[Math.floor(rng.next() * pool.length)] ?? (gender === "erkek" ? "gizem" : "tofiby");
   const jitter = (rng.next() * 2 - 1) * 8;
   const hueShift = (SPECIES_BASE_HUE[species] + jitter + 360) % 360;
   return {

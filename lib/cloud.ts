@@ -1,3 +1,4 @@
+import { speciesGender } from "@/data/species/catalog";
 import { defaultGenetics } from "./genetics";
 import { t } from "./i18n";
 import { createSupabaseBrowser } from "./supabase/client";
@@ -209,6 +210,7 @@ export async function cloudPublishCreature(creature: Creature) {
     owner_id: creature.ownerId,
     name: creature.name,
     species_id: creature.speciesId,
+    gender: creature.gender,
     stage: creature.stage,
     total_gp: creature.totalGp,
     current_streak: creature.currentStreak,
@@ -315,6 +317,10 @@ function mapCreature(row: Record<string, unknown>): Creature {
     ownerId: String(row.owner_id),
     name: String(row.name ?? ""),
     speciesId,
+    gender:
+      row.gender === "erkek" || row.gender === "kiz"
+        ? row.gender
+        : speciesGender(speciesId),
     stage: (row.stage as Creature["stage"]) ?? "egg",
     totalGp: Number(row.total_gp ?? 0),
     currentStreak: Number(row.current_streak ?? 0),

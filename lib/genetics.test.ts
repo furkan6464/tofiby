@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { GAME_CONFIG } from "./gameConfig";
+import { speciesGender, starterSpecies } from "@/data/species/catalog";
 import {
+  assignHiddenEggSpecies,
   breedOffspring,
   circularHueMean,
   createRng,
@@ -57,6 +59,22 @@ describe("genetics", () => {
   it("averages hues on a circle so 350 and 10 meet near 0", () => {
     const mean = circularHueMean(350, 10);
     assert.ok(mean < 8 || mean > 352);
+  });
+
+  it("keeps four girl and four boy starters", () => {
+    assert.deepEqual(starterSpecies("kiz"), ["tofiby", "bulut", "yildiz", "ruji"]);
+    assert.deepEqual(starterSpecies("erkek"), ["gizem", "kalyoz", "burku", "podo"]);
+  });
+
+  it("draws mystery eggs only from the chosen gender pool", () => {
+    for (const gender of ["kiz", "erkek"] as const) {
+      const pool = new Set(starterSpecies(gender));
+      for (let i = 0; i < 40; i++) {
+        const gene = assignHiddenEggSpecies("u", `2027-03-${String((i % 28) + 1).padStart(2, "0")}T00:00:00.000Z`, gender);
+        assert.equal(pool.has(gene.speciesId), true);
+        assert.equal(speciesGender(gene.speciesId), gender);
+      }
+    }
   });
 
   it("can produce the mutation species", () => {
