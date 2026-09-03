@@ -39,6 +39,35 @@ export function todayKey(timeZone: string, now = new Date()): string {
   return dateKeyInZone(now, timeZone);
 }
 
+/** Two-click mini-calendar range: empty → single day → extend → reset. */
+export function nextCalendarRange(
+  rangeStart: string | null,
+  rangeEnd: string | null,
+  clicked: string,
+): { rangeStart: string; rangeEnd: string } {
+  if (!rangeStart || !rangeEnd) {
+    return { rangeStart: clicked, rangeEnd: clicked };
+  }
+  if (rangeStart !== rangeEnd) {
+    return { rangeStart: clicked, rangeEnd: clicked };
+  }
+  if (clicked === rangeStart) {
+    return { rangeStart, rangeEnd };
+  }
+  if (clicked > rangeStart) {
+    return { rangeStart, rangeEnd: clicked };
+  }
+  return { rangeStart: clicked, rangeEnd: rangeStart };
+}
+
+export function dateKeysBetween(from: string, to: string, cap = Number.POSITIVE_INFINITY): string[] {
+  const a = from <= to ? from : to;
+  const b = from <= to ? to : from;
+  const n = diffDays(a, b) + 1;
+  const count = Math.max(1, Math.min(n, cap));
+  return Array.from({ length: count }, (_, i) => addDays(a, i));
+}
+
 export function addDays(dateKey: string, days: number): string {
   const [y, m, d] = dateKey.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));

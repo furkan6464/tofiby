@@ -44,6 +44,7 @@ import type {
   SharedQuest,
   SpeciesId,
   Task,
+  TaskCompanion,
   UserAchievement,
   UserProfile,
 } from "./types";
@@ -56,6 +57,7 @@ import {
   cloudInsertFriendship,
   cloudInsertPair,
   cloudInsertPoke,
+  cloudInsertTogetherInvite,
   cloudLookupFriend,
   cloudMarkNoticesRead,
   cloudPublishCreature,
@@ -107,6 +109,7 @@ interface AppState {
   notices: Notice[];
   offspring: OffspringLog[];
   sharedQuests: SharedQuest[];
+  taskCompanions: TaskCompanion[];
   achievements: UserAchievement[];
   toasts: Toast[];
   widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick" | "worried" | "yawn";
@@ -141,6 +144,8 @@ interface AppState {
     date: string;
     title: string;
     note?: string;
+    description?: string;
+    priority?: Task["priority"];
     goalId?: string | null;
     milestoneId?: string | null;
     weight?: number;
@@ -177,6 +182,9 @@ interface AppState {
   dismissTogether: () => void;
   markWoke: () => void;
   proposeTogether: (friendId: string, title: string) => { ok: boolean; error?: string };
+  inviteCompanion: (taskId: string, friendId: string) => { ok: boolean; error?: string };
+  respondCompanion: (id: string, accept: boolean) => void;
+  cancelCompanion: (id: string) => void;
 }
 
 function makeEgg(ownerId: string, name: string): Creature {
@@ -247,7 +255,7 @@ function hydrateGoal(partial: Partial<Goal> & Pick<Goal, "id" | "userId" | "titl
     weeklyFrequency: null,
     dailyDurationMinutes: 30,
     frequency: { kind: "daily" },
-    color: "#8F8CFF",
+    color: "#8B5CF6",
     status: "active",
     createdAt: new Date().toISOString().slice(0, 10),
     ...partial,
@@ -301,6 +309,7 @@ export const useApp = create<AppState>()(
       notices: [],
       offspring: [],
       sharedQuests: [],
+      taskCompanions: [],
       achievements: [],
       toasts: [],
       widgetAnim: "idle",
@@ -551,7 +560,7 @@ export const useApp = create<AppState>()(
           ),
         });
       },
-      addTask: ({ date, title, note, goalId, milestoneId, weight, time, estimatedDurationMinutes }) => {
+      addTask: ({ date, title, note, description, priority, goalId, milestoneId, weight, time, estimatedDurationMinutes }) => {
         const user = currentUser(get());
         if (!user) return;
         const created = hydrateTask({
@@ -563,6 +572,8 @@ export const useApp = create<AppState>()(
           time: time ?? null,
           title: title.trim(),
           note: note ?? "",
+          description: description ?? "",
+          priority: priority ?? "medium",
           weight: weight ?? GAME_CONFIG.DEFAULT_TASK_WEIGHT,
           estimatedDurationMinutes: estimatedDurationMinutes ?? null,
         });
@@ -697,6 +708,9 @@ export const useApp = create<AppState>()(
           notices: get().notices.filter((n) => n.userId !== user.id),
           sharedQuests: get().sharedQuests.filter(
             (q) => q.fromUser !== user.id && q.toUser !== user.id,
+          ),
+          taskCompanions: get().taskCompanions.filter(
+            (c) => c.fromUser !== user.id && c.toUser !== user.id,
           ),
           achievements: get().achievements.filter((a) => a.userId !== user.id),
           offlineOps: [],
@@ -1366,12 +1380,118 @@ export const useApp = create<AppState>()(
         });
         return { ok: true };
       },
+      inviteCompanion: (taskId, friendId) => {
+        const user = currentUser(get());
+        if (!user) return { ok: false };
+        const task = get().tasks.find((x) => x.id === taskId);
+        if (!task) return { ok: false, error: t("together.needSave") };
+        const friendship = get().friendships.find(
+          (f) =>
+            f.status === "accepted" &&
+            ((f.userA === user.id && f.userB === friendId) ||
+              (f.userB === user.id && f.userA === friendId)),
+        );
+        if (!friendship) return { ok: false, error: t("together.noFriends") };
+        const dup = get().taskCompanions.some(
+          (c) =>
+            c.taskId === taskId &&
+            c.status !== "declined" &&
+            ((c.fromUser === user.id && c.toUser === friendId) ||
+              (c.toUser === user.id && c.fromUser === friendId)),
+        );
+        if (dup) return { ok: false, error: t("together.exists") };
+        const companion: TaskCompanion = {
+          id: uid(),
+          taskId,
+          fromUser: user.id,
+          toUser: friendId,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        };
+        const title = t("together.invite", { name: user.username, task: task.title });
+        set({
+          taskCompanions: [...get().taskCompanions, companion],
+          notices: [
+            ...get().notices,
+            {
+              id: uid(),
+              userId: friendId,
+              kind: "together",
+              title,
+              body: companion.id,
+              read: false,
+              createdAt: companion.createdAt,
+              href: `companion:${companion.id}`,
+            },
+          ],
+        });
+        void cloudInsertTogetherInvite(friendId, title, companion.id);
+        return { ok: true };
+      },
+      respondCompanion: (id, accept) => {
+        const user = currentUser(get());
+        if (!user) return;
+        const companion = get().taskCompanions.find((c) => c.id === id);
+        if (!companion || companion.toUser !== user.id || companion.status !== "pending") return;
+        const markRead = (n: Notice) =>
+          n.href === `companion:${id}` || n.body === id ? { ...n, read: true } : n;
+        if (!accept) {
+          set({
+            taskCompanions: get().taskCompanions.map((c) =>
+              c.id === id ? { ...c, status: "declined" as const } : c,
+            ),
+            notices: get().notices.map(markRead),
+          });
+          return;
+        }
+        const source = get().tasks.find((x) => x.id === companion.taskId);
+        const taskB = source
+          ? hydrateTask({
+              ...source,
+              id: uid(),
+              userId: user.id,
+              completed: false,
+              completedAt: null,
+              status: "pending",
+              note: source.note || t("together.note"),
+            })
+          : null;
+        const quest: SharedQuest | null = source && taskB
+          ? {
+              id: uid(),
+              fromUser: companion.fromUser,
+              toUser: companion.toUser,
+              date: source.date,
+              title: source.title,
+              taskAId: source.id,
+              taskBId: taskB.id,
+            }
+          : null;
+        set({
+          taskCompanions: get().taskCompanions.map((c) =>
+            c.id === id ? { ...c, status: "accepted" as const } : c,
+          ),
+          tasks: taskB ? [...get().tasks, taskB] : get().tasks,
+          sharedQuests: quest ? [...get().sharedQuests, quest] : get().sharedQuests,
+          notices: get().notices.map(markRead),
+        });
+      },
+      cancelCompanion: (id) => {
+        const user = currentUser(get());
+        if (!user) return;
+        const companion = get().taskCompanions.find((c) => c.id === id);
+        if (!companion || companion.fromUser !== user.id || companion.status !== "pending") return;
+        set({
+          taskCompanions: get().taskCompanions.filter((c) => c.id !== id),
+          notices: get().notices.filter((n) => n.href !== `companion:${id}` && n.body !== id),
+        });
+      },
     }),
     {
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 4,
+      version: 5,
       migrate: (persisted) => {
         const p = persisted as {
           creatures?: Creature[];
@@ -1389,6 +1509,7 @@ export const useApp = create<AppState>()(
           busySlots: p.busySlots ?? [],
           offlineOps: p.offlineOps ?? [],
           sharedQuests: p.sharedQuests ?? [],
+          taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
           achievements: p.achievements ?? [],
         };
       },
@@ -1408,6 +1529,7 @@ export const useApp = create<AppState>()(
         notices: s.notices,
         offspring: s.offspring,
         sharedQuests: s.sharedQuests,
+        taskCompanions: s.taskCompanions,
         achievements: s.achievements,
       }),
     },

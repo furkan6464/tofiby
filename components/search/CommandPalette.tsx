@@ -31,8 +31,13 @@ export function CommandPalette() {
       if (e.key === "Escape") setOpen(false);
       if (typing) return;
     };
+    const openSearch = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("tofiby:search", openSearch);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("tofiby:search", openSearch);
+    };
   }, []);
 
   const today = user ? todayKey(user.timezone) : "";

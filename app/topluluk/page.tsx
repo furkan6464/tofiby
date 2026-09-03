@@ -24,6 +24,7 @@ export default function CommunityPage() {
   const poke = useApp((s) => s.poke);
   const bond = useApp((s) => s.bond);
   const markRead = useApp((s) => s.markNoticesRead);
+  const respondCompanion = useApp((s) => s.respondCompanion);
   const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -229,11 +230,29 @@ export default function CommunityPage() {
           <p className="mt-3 text-sm text-muted">{t("community.noticeEmpty")}</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {myNotices.map((n) => (
-              <Card key={n.id} className={`p-3 text-sm ${n.read ? "text-faint" : ""}`}>
-                {n.title}
-              </Card>
-            ))}
+            {myNotices.map((n) => {
+              const companionId =
+                n.kind === "together" && n.href?.startsWith("companion:")
+                  ? n.href.slice("companion:".length)
+                  : n.kind === "together"
+                    ? n.body
+                    : null;
+              return (
+                <Card key={n.id} className={`p-3 text-sm ${n.read ? "text-faint" : ""}`}>
+                  <p>{n.title}</p>
+                  {companionId && !n.read ? (
+                    <div className="mt-3 flex gap-2">
+                      <Button onClick={() => respondCompanion(companionId, true)}>
+                        {t("community.accept")}
+                      </Button>
+                      <Button tone="ghost" onClick={() => respondCompanion(companionId, false)}>
+                        {t("together.decline")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>

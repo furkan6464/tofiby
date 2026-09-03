@@ -11,6 +11,11 @@
   --accent-pink-glow: #ff3e9e66;
   --accent-violet: #8b5cf6;
   --accent-mint: #39ffc0;
+  --goal-blue: #3b82f6;
+  --goal-green: #22c55e;
+  --goal-coral: #f87171;
+  --goal-purple: #8b5cf6;
+  --goal-pink: #ff3e9e;
   --text-primary: #f5f3fa;
   --text-muted: #9992ac;
   --text-faint: #5d5770;
@@ -126,9 +131,9 @@ textarea:focus {
 .event-pop input,
 .event-pop textarea,
 .event-pop select {
-  background: #f4f4f5;
+  background: #ececee;
   color: #141414;
-  border: 1px solid #e4e4e7;
+  border: 1px solid transparent;
   border-radius: 12px;
 }
 

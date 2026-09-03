@@ -243,14 +243,19 @@
     "planGo": "Boşluklara yerleştir",
     "planDone": "{n} blok yerleştirildi.",
     "upcoming": "Bugünün işleri",
-    "viewAll": "Tümü",
+    "viewAll": "Tümünü Gör",
     "breakdown": "Zaman dağılımı",
     "myCalendars": "Takvimlerim",
+    "personal": "Kişisel",
+    "tofibyGoals": "Tofiby Hedefleri",
+    "userRole": "Planlayıcı",
+    "taskTag": "Görev",
     "start": "Başlangıç",
     "end": "Bitiş",
-    "addNote": "Not ekle",
+    "addNote": "Not Ekle",
     "more": "Tüm alanlar",
-    "looseHint": "Saatsiz — ızgaraya sürükle"
+    "looseHint": "Saatsiz — ızgaraya sürükle",
+    "link": "Bağlantı veya not"
   },
   "goals": {
     "title": "Hedeflerim",
@@ -411,10 +416,18 @@
   },
   "together": {
     "ask": "Birlikte yapalım",
+    "do": "Birlikte yap",
     "placeholder": "Bugün ne?",
     "note": "Birlikte",
     "done": "Birlikte bitti.",
-    "exists": "Bugün zaten bir ortak kartınız var."
+    "exists": "Bugün zaten bir ortak kartınız var.",
+    "waiting": "Bekliyor",
+    "needSave": "Önce görevi kaydet, sonra arkadaşını çağır.",
+    "invite": "{name} seninle '{task}' görevini birlikte yapmak istiyor.",
+    "decline": "Reddet",
+    "cancel": "İsteği iptal et",
+    "search": "Arkadaş ara",
+    "noFriends": "Önce Topluluk’tan bir arkadaş ekle."
   },
   "story": {
     "none": [

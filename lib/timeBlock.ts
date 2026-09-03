@@ -36,3 +36,39 @@ export function tint(color: string, alpha = 0.28): string {
   const b = parseInt(hex.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
+export function formatHourLabel(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
+export function durationBetween(start: string, end: string): number {
+  let d = minutesOf(end) - minutesOf(start);
+  if (d <= 0) d += 24 * 60;
+  return Math.max(15, d);
+}
+
+export function timeOptions(step = 15): string[] {
+  const out: string[] = [];
+  for (let m = 0; m < 24 * 60; m += step) out.push(timeFromMinutes(m));
+  return out;
+}
+
+export function gmtOffsetLabel(timeZone: string, now = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      timeZoneName: "shortOffset",
+    }).formatToParts(now);
+    const raw = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+    return raw.replace("UTC", "GMT").replace("GMT", "GMT ").replace(/\s+/g, " ").trim();
+  } catch {
+    return "GMT +3";
+  }
+}
+
+export function initials(name: string): string {
+  const clean = name.trim();
+  if (!clean) return "?";
+  return clean.slice(0, 1).toUpperCase();
+}

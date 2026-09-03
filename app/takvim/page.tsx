@@ -6,15 +6,17 @@ import { t } from "@/lib/i18n";
 import {
   addDays,
   addMonths,
+  dateKeysBetween,
+  diffDays,
   isSameMonth,
   monthGrid,
   monthLabel,
+  nextCalendarRange,
   prettyDate,
   todayKey,
   weekKeys,
 } from "@/lib/dates";
 import { useApp, useSession } from "@/lib/store";
-import type { Task } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TaskDetail } from "@/components/tasks/TaskDetail";
@@ -25,6 +27,7 @@ import {
   taskToDraft,
   type ComposerDraft,
 } from "@/components/calendar/EventComposer";
+import { GOAL_COLOR_FALLBACK } from "@/lib/goalColors";
 import { tint } from "@/lib/timeBlock";
 
 type View = "month" | "week" | "day" | "list";
@@ -41,6 +44,8 @@ function CalendarInner() {
   const user = useSession();
   const tasks = useApp((s) => s.tasks);
   const goals = useApp((s) => s.goals);
+  const users = useApp((s) => s.users);
+  const quests = useApp((s) => s.sharedQuests);
   const addTask = useApp((s) => s.addTask);
   const moveTask = useApp((s) => s.moveTask);
   const updateTask = useApp((s) => s.updateTask);
@@ -49,25 +54,66 @@ function CalendarInner() {
   const search = useSearchParams();
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [monthCursor, setMonthCursor] = useState("");
+  const [hiddenCals, setHiddenCals] = useState<string[]>([]);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [hoursTitle, setHoursTitle] = useState("");
   const [hoursAmt, setHoursAmt] = useState("6");
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
+  const [popAt, setPopAt] = useState<{ x: number; y: number } | null>(null);
   const [railOpen, setRailOpen] = useState(false);
+
+  function applyRange(start: string, end: string) {
+    const lo = start <= end ? start : end;
+    const hi = start <= end ? end : start;
+    setRangeStart(lo);
+    setRangeEnd(hi);
+    setCursor(lo);
+    if (diffDays(lo, hi) + 1 > 14) setView("list");
+  }
+
+  function pickSingle(d: string) {
+    applyRange(d, d);
+  }
+
+  function selectDay(d: string) {
+    const next = nextCalendarRange(rangeStart, rangeEnd, d);
+    applyRange(next.rangeStart, next.rangeEnd);
+  }
+
+  function shiftRange(days: number) {
+    const start = rangeStart || cursor;
+    const end = rangeEnd || cursor;
+    if (!start || !end) return;
+    applyRange(addDays(start, days), addDays(end, days));
+  }
 
   useEffect(() => {
     const qDate = search.get("d");
     const qView = search.get("view");
-    if (qDate) setCursor(qDate);
+    if (qDate) {
+      setCursor(qDate);
+      setRangeStart(qDate);
+      setRangeEnd(qDate);
+    }
     if (qView === "week" || qView === "day" || qView === "month" || qView === "list") {
       setView(qView);
     }
   }, [search]);
 
   useEffect(() => {
-    if (user && !cursor) setCursor(todayKey(user.timezone));
+    if (!user || cursor) return;
+    const d = todayKey(user.timezone);
+    setCursor(d);
+    setRangeStart(d);
+    setRangeEnd(d);
   }, [user, cursor]);
+
+  useEffect(() => {
+    if (cursor) setMonthCursor(cursor);
+  }, [cursor]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -80,23 +126,30 @@ function CalendarInner() {
       if (drawerId || draft || typing) return;
       if (!user) return;
       const today = todayKey(user.timezone);
-      if (e.key === "t" || e.key === "T") setCursor(today);
+      if (e.key === "t" || e.key === "T") pickSingle(today);
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         const dir = e.key === "ArrowLeft" ? -1 : 1;
-        setCursor((c) => {
-          const base = c || today;
-          if (view === "month") return addMonths(base, dir);
-          return addDays(base, dir * (view === "week" ? 7 : 1));
-        });
+        if (view === "month") {
+          pickSingle(addMonths(cursor || today, dir));
+          return;
+        }
+        const span =
+          rangeStart && rangeEnd ? Math.max(1, diffDays(rangeStart, rangeEnd) + 1) : view === "week" ? 7 : 1;
+        shiftRange(dir * span);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [user, view, drawerId, draft]);
+  }, [user, view, drawerId, draft, cursor, rangeStart, rangeEnd]);
 
   const today = user ? todayKey(user.timezone) : "";
   const activeCursor = cursor || today;
-  const week = weekKeys(activeCursor);
+  const rangeLo = rangeStart && rangeEnd ? (rangeStart <= rangeEnd ? rangeStart : rangeEnd) : activeCursor;
+  const rangeHi = rangeStart && rangeEnd ? (rangeStart <= rangeEnd ? rangeEnd : rangeStart) : activeCursor;
+  const rangeSpan = diffDays(rangeLo, rangeHi) + 1;
+  const visibleDays = dateKeysBetween(rangeLo, rangeHi, 14);
+  const week = visibleDays;
+  const hidden = useMemo(() => new Set(hiddenCals), [hiddenCals]);
   const mine = useMemo(
     () => goals.filter((g) => g.userId === user?.id && g.status === "active"),
     [goals, user?.id],
@@ -105,10 +158,14 @@ function CalendarInner() {
     () =>
       tasks.filter((x) => {
         if (!user || x.userId !== user.id) return false;
-        if (filter !== "all" && x.goalId !== filter) return false;
+        if (x.goalId) {
+          if (hidden.has(x.goalId) || hidden.has("goals")) return false;
+        } else if (hidden.has("personal")) {
+          return false;
+        }
         return true;
       }),
-    [tasks, user, filter],
+    [tasks, user, hidden],
   );
   const todayTasks = useMemo(
     () =>
@@ -122,20 +179,58 @@ function CalendarInner() {
     [mineTasks, week],
   );
   const breakdown = useMemo(() => {
-    return mine
-      .map((g) => ({
-        id: g.id,
-        title: g.title,
-        color: g.color,
-        minutes: mineTasks
-          .filter((x) => x.goalId === g.id && week.includes(x.date) && x.status !== "postponed")
-          .reduce((s, x) => s + (x.estimatedDurationMinutes ?? 30), 0),
-      }))
-      .filter((x) => x.minutes > 0);
-  }, [mine, mineTasks, week]);
+    if (!user || !today) return [];
+    const from = addDays(today, -29);
+    const inWindow = tasks.filter(
+      (x) =>
+        x.userId === user.id &&
+        x.date >= from &&
+        x.date <= today &&
+        x.status !== "postponed",
+    );
+    const rows = mine.map((g) => ({
+      id: g.id,
+      title: g.title,
+      color: g.color,
+      minutes: inWindow
+        .filter((x) => x.goalId === g.id)
+        .reduce((s, x) => s + (x.estimatedDurationMinutes ?? 30), 0),
+    }));
+    const personalMin = inWindow
+      .filter((x) => !x.goalId)
+      .reduce((s, x) => s + (x.estimatedDurationMinutes ?? 30), 0);
+    if (personalMin > 0) {
+      rows.push({
+        id: "personal",
+        title: t("calendar.personal"),
+        color: "#FF3E9E",
+        minutes: personalMin,
+      });
+    }
+    return rows.filter((x) => x.minutes > 0);
+  }, [mine, tasks, user, today]);
+
+  const partners = useMemo(
+    () => users.map((u) => ({ id: u.id, name: u.username })),
+    [users],
+  );
+
+  const draftFaces = useMemo(() => {
+    if (!draft?.id || !user) return [];
+    const quest = quests.find((q) => q.taskAId === draft.id || q.taskBId === draft.id);
+    if (!quest) return [];
+    const other = quest.fromUser === user.id ? quest.toUser : quest.fromUser;
+    const found = users.find((u) => u.id === other);
+    return found ? [{ id: found.id, name: found.username }] : [];
+  }, [draft?.id, quests, user, users]);
 
   if (!user) return null;
   const drawer = tasks.find((x) => x.id === drawerId) ?? null;
+
+  function openDraft(next: ComposerDraft, at?: { x: number; y: number }) {
+    setDraft(next);
+    setPopAt(at ?? { x: window.innerWidth / 2, y: 180 });
+  }
 
   function saveDraft() {
     if (!draft?.title.trim()) return;
@@ -143,6 +238,8 @@ function CalendarInner() {
       updateTask(draft.id, {
         title: draft.title.trim(),
         note: draft.note,
+        description: draft.description ?? "",
+        priority: draft.priority ?? "medium",
         goalId: draft.goalId || null,
         estimatedDurationMinutes: draft.duration,
       });
@@ -152,6 +249,8 @@ function CalendarInner() {
         date: draft.date,
         title: draft.title,
         note: draft.note,
+        description: draft.description,
+        priority: draft.priority,
         goalId: draft.goalId || null,
         time: draft.time,
         estimatedDurationMinutes: draft.duration,
@@ -160,22 +259,36 @@ function CalendarInner() {
     setDraft(null);
   }
 
+  const popStyle = popAt
+    ? {
+        left: Math.min(Math.max(16, popAt.x - 24), typeof window !== "undefined" ? window.innerWidth - 380 : popAt.x),
+        top: Math.min(Math.max(80, popAt.y - 24), typeof window !== "undefined" ? window.innerHeight - 120 : popAt.y),
+      }
+    : { left: 80, top: 120 };
+
   const rail = (
     <CalendarRail
-      cursor={activeCursor}
+      monthCursor={monthCursor || activeCursor}
       today={today}
-      week={week}
-      monthDays={monthGrid(activeCursor)}
+      rangeStart={rangeStart ?? activeCursor}
+      rangeEnd={rangeEnd ?? activeCursor}
+      monthDays={monthGrid(monthCursor || activeCursor)}
       todayTasks={todayTasks}
       goals={mine}
-      filter={filter}
+      hiddenCals={hiddenCals}
       breakdown={breakdown}
       hoursTitle={hoursTitle}
       hoursAmt={hoursAmt}
-      onCursor={setCursor}
-      onFilter={setFilter}
+      onCursor={selectDay}
+      onMonth={setMonthCursor}
+      onToggleCal={(id) =>
+        setHiddenCals((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
+      }
       onToggle={(id) => toggleTask(id)}
-      onOpen={setDrawerId}
+      onOpen={(id) => {
+        const task = tasks.find((x) => x.id === id);
+        if (task) openDraft(taskToDraft(task));
+      }}
       onHoursTitle={setHoursTitle}
       onHoursAmt={setHoursAmt}
       onPlan={() => {
@@ -187,11 +300,11 @@ function CalendarInner() {
   );
 
   return (
-    <main className="flex h-auto flex-col px-4 py-4 lg:h-dvh lg:overflow-hidden lg:px-5 lg:py-5">
+    <main className="flex h-auto flex-col px-4 py-4 lg:h-full lg:overflow-hidden lg:px-6 lg:py-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl capitalize">{monthLabel(activeCursor)}</h1>
-        </div>
+        <h1 className="font-display text-[28px] font-bold capitalize leading-none lg:text-[32px]">
+          {monthLabel(activeCursor)}
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="rounded-chip bg-raised px-3 py-1.5 text-sm lg:hidden"
@@ -202,45 +315,45 @@ function CalendarInner() {
           <Button
             tone="ghost"
             onClick={() =>
-              setCursor(
-                view === "month"
-                  ? addMonths(activeCursor, -1)
-                  : addDays(activeCursor, view === "day" ? -1 : -7),
-              )
+              view === "month"
+                ? pickSingle(addMonths(activeCursor, -1))
+                : shiftRange(-(view === "day" ? 1 : Math.min(7, rangeSpan)))
             }
           >
             {t("common.back")}
           </Button>
-          <Button tone="ghost" onClick={() => setCursor(today)}>
+          <Button tone="ghost" onClick={() => pickSingle(today)}>
             {t("calendar.goToday")}
           </Button>
           <Button
             tone="ghost"
             onClick={() =>
-              setCursor(
-                view === "month"
-                  ? addMonths(activeCursor, 1)
-                  : addDays(activeCursor, view === "day" ? 1 : 7),
-              )
+              view === "month"
+                ? pickSingle(addMonths(activeCursor, 1))
+                : shiftRange(view === "day" ? 1 : Math.min(7, rangeSpan))
             }
           >
             {t("common.continue")}
           </Button>
-          {(["month", "week", "day", "list"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`rounded-full px-3 py-1.5 text-sm ${view === v ? "bg-white text-black" : "text-faint"}`}
-            >
-              {t(`calendar.${v}`)}
-            </button>
-          ))}
+          <div className="flex rounded-full bg-white/5 p-1">
+            {(["month", "week", "day", "list"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-full px-3.5 py-1.5 text-sm ${
+                  view === v ? "bg-white font-medium text-black" : "text-muted"
+                }`}
+              >
+                {t(`calendar.${v}`)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {railOpen ? <div className="mb-4 lg:hidden">{rail}</div> : null}
 
-      <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:gap-5">
+      <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[18.5rem_minmax(0,1fr)] lg:gap-5">
         <div className="hidden lg:block lg:min-h-0">{rail}</div>
 
         <section className="flex h-[70vh] min-h-[28rem] min-w-0 flex-col rounded-2xl border border-white/[0.06] bg-surface p-3 lg:h-full lg:min-h-0 lg:p-4">
@@ -252,7 +365,7 @@ function CalendarInner() {
                   key={task.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/task-id", task.id)}
-                  onClick={() => setDraft(taskToDraft(task))}
+                  onClick={(e) => openDraft(taskToDraft(task), { x: e.clientX, y: e.clientY })}
                   className="rounded-full bg-raised px-2.5 py-1 text-xs"
                 >
                   {task.title}
@@ -263,7 +376,7 @@ function CalendarInner() {
 
           {view === "list" ? (
             <div className="space-y-3 overflow-y-auto">
-              {Array.from({ length: 21 }, (_, i) => addDays(today, i)).map((d) => {
+              {(rangeSpan > 1 ? dateKeysBetween(rangeLo, rangeHi) : Array.from({ length: 21 }, (_, i) => addDays(today, i))).map((d) => {
                 const dayTasks = mineTasks.filter((x) => x.date === d);
                 if (dayTasks.length === 0 && d > addDays(today, 7)) return null;
                 return (
@@ -273,7 +386,7 @@ function CalendarInner() {
                       <button
                         key={task.id}
                         className="mt-2 block w-full text-left text-sm"
-                        onClick={() => setDraft(taskToDraft(task))}
+                        onClick={(e) => openDraft(taskToDraft(task), { x: e.clientX, y: e.clientY })}
                       >
                         {task.time ? `${task.time} · ` : ""}
                         {task.title}
@@ -296,8 +409,8 @@ function CalendarInner() {
                   <button
                     key={d}
                     onClick={() => {
-                      setCursor(d);
-                      setView("week");
+                      selectDay(d);
+                      if (view === "month") setView("week");
                     }}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
@@ -311,7 +424,7 @@ function CalendarInner() {
                     <p className="text-[11px]">{d.slice(8)}</p>
                     <div className="mt-1 space-y-1">
                       {dayTasks.slice(0, 3).map((task) => {
-                        const color = mine.find((g) => g.id === task.goalId)?.color ?? "#6B8CFF";
+                        const color = mine.find((g) => g.id === task.goalId)?.color ?? GOAL_COLOR_FALLBACK;
                         return (
                           <div
                             key={task.id}
@@ -329,22 +442,29 @@ function CalendarInner() {
             </div>
           ) : (
             <WeekGrid
-              week={view === "day" ? [activeCursor] : week}
+              week={visibleDays}
               today={today}
               cursor={activeCursor}
               tasks={mineTasks}
               goals={mine}
-              onCursor={setCursor}
-              onOpen={(task) => setDraft(taskToDraft(task))}
-              onSlot={(date, time) =>
-                setDraft({
-                  title: "",
-                  date,
-                  time,
-                  duration: 30,
-                  goalId: filter === "all" ? "" : filter,
-                  note: "",
-                })
+              quests={quests}
+              userId={user.id}
+              partners={partners}
+              timezone={user.timezone}
+              onCursor={selectDay}
+              onOpen={(task, at) => openDraft(taskToDraft(task), at)}
+              onSlot={(date, time, at) =>
+                openDraft(
+                  {
+                    title: "",
+                    date,
+                    time,
+                    duration: 30,
+                    goalId: "",
+                    note: "",
+                  },
+                  at,
+                )
               }
               onMove={moveTask}
             />
@@ -353,12 +473,17 @@ function CalendarInner() {
       </div>
 
       {draft ? (
-        <div className="fixed inset-0 z-[85] flex items-start justify-center bg-black/50 pt-[12vh]">
-          <button className="absolute inset-0" aria-label={t("common.close")} onClick={() => setDraft(null)} />
-          <div className="relative z-10">
+        <>
+          <button
+            className="fixed inset-0 z-[85] bg-black/35"
+            aria-label={t("common.close")}
+            onClick={() => setDraft(null)}
+          />
+          <div className="fixed z-[86]" style={popStyle}>
             <EventComposer
               draft={draft}
               goals={mine}
+              faces={draftFaces}
               onChange={setDraft}
               onSave={saveDraft}
               onClose={() => setDraft(null)}
@@ -372,7 +497,7 @@ function CalendarInner() {
               }
             />
           </div>
-        </div>
+        </>
       ) : null}
 
       {drawer ? (

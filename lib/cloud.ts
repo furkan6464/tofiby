@@ -142,6 +142,18 @@ export async function cloudAcceptFriendship(id: string) {
   await client.from("friendships").update({ status: "accepted" }).eq("id", id);
 }
 
+export async function cloudInsertTogetherInvite(toUser: string, title: string, companionId: string) {
+  const client = sb();
+  if (!client) return;
+  await client.from("notices").insert({
+    user_id: toUser,
+    kind: "together",
+    title,
+    body: companionId,
+    href: `companion:${companionId}`,
+  });
+}
+
 export async function cloudInsertPoke(fromUser: string, toUser: string, date: string, fromUsername: string) {
   const client = sb();
   if (!client) return { ok: false };

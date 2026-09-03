@@ -215,6 +215,17 @@ export interface SharedQuest {
   taskBId: string;
 }
 
+export type CompanionStatus = "pending" | "accepted" | "declined";
+
+export interface TaskCompanion {
+  id: string;
+  taskId: string;
+  fromUser: string;
+  toUser: string;
+  status: CompanionStatus;
+  createdAt: string;
+}
+
 export type AchievementId =
   | "first_step"
   | "quietly_on"
@@ -236,7 +247,8 @@ export type NoticeKind =
   | "marriage"
   | "streak"
   | "letter"
-  | "achievement";
+  | "achievement"
+  | "together";
 
 export interface Notice {
   id: string;

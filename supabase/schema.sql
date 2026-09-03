@@ -284,3 +284,17 @@ create policy "send notices" on public.notices for insert with check (
 
 create unique index if not exists friendships_unordered_pair
   on public.friendships (least(user_a, user_b), greatest(user_a, user_b));
+
+create table if not exists public.task_companions (
+  id uuid primary key default gen_random_uuid(),
+  task_id text not null,
+  from_user uuid not null references public.profiles(id) on delete cascade,
+  to_user uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'pending',
+  created_at timestamptz not null default now()
+);
+alter table public.task_companions enable row level security;
+drop policy if exists "own companions" on public.task_companions;
+create policy "own companions" on public.task_companions for all
+  using (from_user = auth.uid() or to_user = auth.uid())
+  with check (from_user = auth.uid() or to_user = auth.uid());
