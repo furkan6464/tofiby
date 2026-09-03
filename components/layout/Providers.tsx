@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useApp, useSession, useTodayBundle } from "@/lib/store";
+import { useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { todayKey } from "@/lib/dates";
 import { reminderPayloads } from "@/lib/reminders";
 import { t } from "@/lib/i18n";
@@ -20,11 +20,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    useApp.persist.rehydrate();
-    useApp.getState().setHydrated(true);
-    useApp.getState().finalizePending();
-    void useApp.getState().bootCloud();
-    setReady(true);
+    let cancelled = false;
+    void Promise.resolve(useApp.persist.rehydrate()).finally(() => {
+      if (cancelled) return;
+      useApp.getState().setHydrated(true);
+      useApp.getState().finalizePending();
+      void useApp.getState().bootCloud();
+      setReady(true);
+    });
     const onVis = () => {
       if (document.visibilityState === "visible") {
         useApp.getState().finalizePending();
@@ -41,6 +44,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
     return () => {
+      cancelled = true;
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
       window.clearInterval(tick);
@@ -63,7 +67,9 @@ function Gate({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const user = useSession();
+  const creature = useActiveCreature();
   const theme = user?.theme ?? "ink";
+  const needsOnboarding = Boolean(user && (!user.onboarded || !creature));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -75,15 +81,15 @@ function Gate({ children }: { children: React.ReactNode }) {
       router.replace("/giris");
       return;
     }
-    if (!user.onboarded && path !== "/onboarding") {
+    if (needsOnboarding && path !== "/onboarding") {
       router.replace("/onboarding");
     }
-    if (user.onboarded && path === "/onboarding") {
+    if (!needsOnboarding && path === "/onboarding") {
       router.replace("/anasayfa");
     }
-  }, [path, user, router]);
+  }, [path, user, needsOnboarding, router]);
 
-  const appChrome = Boolean(user?.onboarded) && !PUBLIC.has(path) && path !== "/onboarding";
+  const appChrome = Boolean(user && !needsOnboarding) && !PUBLIC.has(path) && path !== "/onboarding";
 
   return (
     <>

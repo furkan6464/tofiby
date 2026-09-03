@@ -1,17 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Fredoka, Press_Start_2P } from "next/font/google";
+import { Fredoka, Plus_Jakarta_Sans, Press_Start_2P } from "next/font/google";
 import { t } from "@/lib/i18n";
 import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
 
 const display = Fredoka({
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-display",
   weight: ["400", "500", "600", "700"],
 });
 
+const sans = Plus_Jakarta_Sans({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+});
+
 const pixel = Press_Start_2P({
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-pixel",
   weight: "400",
 });
@@ -40,17 +46,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" className={`${display.variable} ${pixel.variable}`}>
-      <head>
-        <link
-          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body
-        style={{ fontFamily: "Satoshi, var(--font-body), system-ui, sans-serif" }}
-        className="antialiased"
-      >
+    <html lang="tr" className={`${display.variable} ${sans.variable} ${pixel.variable}`}>
+      <body className="antialiased">
         <div className="grain" aria-hidden />
         <Providers>{children}</Providers>
       </body>

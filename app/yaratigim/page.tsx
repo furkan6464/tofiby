@@ -22,7 +22,15 @@ export default function CreaturePage() {
   const user = useSession();
   const creature = useActiveCreature();
   const { score } = useTodayBundle();
-  if (!user || !creature) return null;
+  if (!user) return null;
+  if (!creature) {
+    return (
+      <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
+        <h1 className="font-display text-4xl">{t("creature.unnamed")}</h1>
+        <p className="mt-3 text-muted">{t("goals.empty")}</p>
+      </main>
+    );
+  }
   const today = todayKey(user.timezone);
   const progress = liveProgress(creature);
   const union = liveUnion(creature, today);

@@ -27,7 +27,7 @@
   --radius-chip: 10px;
   --radius-panel: 18px;
   --radius-nest: 28px;
-  --font-body: "Satoshi", system-ui, sans-serif;
+  --font-body: var(--font-sans), system-ui, sans-serif;
 }
 
 [data-theme="dusk"] {
