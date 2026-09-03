@@ -259,12 +259,15 @@ function CalendarInner() {
     setDraft(null);
   }
 
-  const popStyle = popAt
-    ? {
-        left: Math.min(Math.max(16, popAt.x - 24), typeof window !== "undefined" ? window.innerWidth - 380 : popAt.x),
-        top: Math.min(Math.max(80, popAt.y - 24), typeof window !== "undefined" ? window.innerHeight - 120 : popAt.y),
-      }
-    : { left: 80, top: 120 };
+  const popStyle = (() => {
+    if (typeof window === "undefined") return { left: 80, top: 80 };
+    const at = popAt ?? { x: window.innerWidth / 2, y: 180 };
+    const maxH = Math.min(window.innerHeight - 32, 640);
+    return {
+      left: Math.min(Math.max(16, at.x - 24), window.innerWidth - 380),
+      top: Math.min(Math.max(16, at.y - 24), window.innerHeight - maxH - 16),
+    };
+  })();
 
   const rail = (
     <CalendarRail

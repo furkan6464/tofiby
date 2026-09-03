@@ -22,7 +22,6 @@ export type ComposerDraft = {
 };
 
 const TIMES = timeOptions(15);
-const PRIORITY_KEYS: TaskPriority[] = ["low", "medium", "high"];
 
 export function EventComposer({
   draft,
@@ -45,7 +44,6 @@ export function EventComposer({
   const [noteOpen, setNoteOpen] = useState(Boolean(draft.note));
   const [editingTitle, setEditingTitle] = useState(!draft.title.trim());
   const end = draft.time ? endTime(draft.time, draft.duration) : "";
-  const goal = goals.find((g) => g.id === draft.goalId);
 
   function startEditTitle() {
     setEditingTitle(true);
@@ -53,7 +51,7 @@ export function EventComposer({
   }
 
   return (
-    <div className="event-pop w-[min(23rem,92vw)] rounded-[24px] bg-[#f7f7f8] px-6 py-6 text-[#141414] shadow-[0_36px_90px_rgba(0,0,0,0.55)]">
+    <div className="event-pop max-h-[min(85dvh,40rem)] w-[min(23rem,92vw)] overflow-y-auto rounded-[24px] bg-[#f7f7f8] px-6 py-6 text-[#141414] shadow-[0_36px_90px_rgba(0,0,0,0.55)]">
       <div className="flex items-start justify-between gap-3">
         {editingTitle ? (
           <input
@@ -140,38 +138,6 @@ export function EventComposer({
             onChange={(e) => onChange({ ...draft, description: e.target.value })}
           />
         </label>
-
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-[#111] px-2.5 py-1 text-[11px] text-white">
-            {t("calendar.taskTag")}
-          </span>
-          {goal ? (
-            <span
-              className="rounded-full px-2.5 py-1 text-[11px] text-white"
-              style={{ background: goal.color }}
-            >
-              {goal.title}
-            </span>
-          ) : (
-            <span className="rounded-full bg-[#2a2a2e] px-2.5 py-1 text-[11px] text-white">
-              {t("calendar.noGoal")}
-            </span>
-          )}
-          {PRIORITY_KEYS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onChange({ ...draft, priority: p })}
-              className={`rounded-full px-2.5 py-1 text-[11px] ${
-                (draft.priority ?? "medium") === p
-                  ? "bg-[#111] text-white"
-                  : "bg-[#2a2a2e] text-white/80"
-              }`}
-            >
-              {t(`calendar.priority${p === "low" ? "Low" : p === "high" ? "High" : "Mid"}`)}
-            </button>
-          ))}
-        </div>
 
         <label className="block space-y-2">
           <span className="text-[11px] text-[#888]">{t("calendar.attachGoal")}</span>
