@@ -42,6 +42,7 @@ export default function CommunityPage() {
   const today = todayKey(user.timezone);
   const mine = friendships.filter((f) => f.userA === user.id || f.userB === user.id);
   const pending = mine.filter((f) => f.status === "pending" && f.userB === user.id);
+  const outgoing = mine.filter((f) => f.status === "pending" && f.userA === user.id);
   const friends = mine.filter((f) => f.status === "accepted");
   const myNotices = notices.filter((n) => n.userId === user.id).slice(-8).reverse();
   const myCreature = creatures.find((c) => c.ownerId === user.id && c.status === "active");
@@ -54,11 +55,15 @@ export default function CommunityPage() {
       <Card className="mt-6 p-5">
         <form
           className="flex flex-col gap-3 sm:flex-row"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const res = addFriend(name);
-            setError(res.ok ? "" : res.error ?? "");
-            if (res.ok) setName("");
+            const res = await addFriend(name);
+            if (res.ok) {
+              setName("");
+              setError(t("community.sent"));
+            } else {
+              setError(res.error ?? "");
+            }
           }}
         >
           <div className="flex-1">
@@ -72,7 +77,11 @@ export default function CommunityPage() {
             {t("community.addFriend")}
           </Button>
         </form>
-        {error ? <p className="mt-2 text-sm text-pink">{error}</p> : null}
+        {error ? (
+          <p className={`mt-2 text-sm ${error === t("community.sent") ? "text-mint" : "text-pink"}`}>
+            {error}
+          </p>
+        ) : null}
         <button
           className="mt-3 text-sm text-violet"
           onClick={() => {
@@ -83,6 +92,23 @@ export default function CommunityPage() {
           {copied ? t("community.copied") : t("community.invite")}
         </button>
       </Card>
+
+      {outgoing.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="font-display text-xl">{t("community.outgoing")}</h2>
+          <div className="mt-3 space-y-2">
+            {outgoing.map((f) => {
+              const other = users.find((u) => u.id === f.userB);
+              return (
+                <Card key={f.id} className="flex items-center justify-between p-4">
+                  <span>@{other?.username}</span>
+                  <span className="text-xs text-faint">{t("community.waiting")}</span>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {pending.length > 0 ? (
         <section className="mt-8">

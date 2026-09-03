@@ -5,7 +5,7 @@ import Link from "next/link";
 import { t, tList } from "@/lib/i18n";
 import { GOAL_COLORS } from "@/lib/goalColors";
 import { todayKey } from "@/lib/dates";
-import { goalProgress } from "@/lib/plan";
+import { goalWorkProgress } from "@/lib/plan";
 import { useApp, useSession } from "@/lib/store";
 import type { FrequencyPattern } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/Progress";
 export default function GoalsPage() {
   const user = useSession();
   const goals = useApp((s) => s.goals);
-  const milestones = useApp((s) => s.milestones);
+  const tasks = useApp((s) => s.tasks);
   const addGoal = useApp((s) => s.addGoal);
   const archiveGoal = useApp((s) => s.archiveGoal);
   const [tab, setTab] = useState<"active" | "archived">("active");
@@ -60,7 +60,7 @@ export default function GoalsPage() {
           <Card className="p-8 text-center text-muted">{t("goals.empty")}</Card>
         ) : (
           mine.map((g) => {
-            const pct = goalProgress(milestones.filter((m) => m.goalId === g.id));
+            const pct = goalWorkProgress(tasks.filter((x) => x.goalId === g.id)).pct;
             return (
               <Card key={g.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">

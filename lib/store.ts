@@ -25,7 +25,7 @@ import {
   weekdayOf,
 } from "./dates";
 import { enumerateDates, matchesFrequency } from "./frequency";
-import { hashPass, uid, validUsername } from "./ids";
+import { hashPass, parseFriendHandle, uid, validUsername } from "./ids";
 import { t } from "./i18n";
 import { celebrate } from "./confetti";
 import type {
@@ -50,6 +50,23 @@ import type {
 import { scheduleHours } from "./plan";
 import { evaluateAchievements, LETTER_MILESTONES } from "./achievements";
 import { isRestWeekday, roomUnlocks } from "./bond";
+import {
+  cloudAcceptFriendship,
+  cloudEnabled,
+  cloudInsertFriendship,
+  cloudInsertPair,
+  cloudInsertPoke,
+  cloudLookupFriend,
+  cloudMarkNoticesRead,
+  cloudPublishCreature,
+  cloudPullSocial,
+  cloudSession,
+  cloudSetOnboarded,
+  cloudSignIn,
+  cloudSignOut,
+  cloudSignUp,
+  type CloudProfile,
+} from "./cloud";
 
 interface Account extends UserProfile {
   passwordHash: string;
@@ -103,12 +120,14 @@ interface AppState {
     username: string;
     email: string;
     password: string;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   login: (
     identifier: string,
     password: string,
-  ) => { ok: true } | { ok: false; error: string };
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   logout: () => void;
+  bootCloud: () => Promise<void>;
+  syncCloudSocial: () => Promise<void>;
   completeOnboarding: (input: {
     creatureName: string;
     goals: DraftGoal[];
@@ -144,7 +163,7 @@ interface AppState {
   toggleTask: (id: string) => { streakJustHit: boolean; closed: boolean; hatched: boolean };
   finalizePending: (now?: Date) => void;
   updateSettings: (patch: Partial<UserProfile>) => void;
-  addFriend: (username: string) => { ok: boolean; error?: string };
+  addFriend: (username: string) => Promise<{ ok: boolean; error?: string }>;
   acceptFriend: (id: string) => void;
   poke: (toUser: string) => { ok: boolean; error?: string };
   bond: (friendId: string) => { ok: boolean; error?: string };
@@ -291,7 +310,7 @@ export const useApp = create<AppState>()(
       pendingTogether: false,
       sessionWoke: false,
       setHydrated: (v) => set({ hydrated: v }),
-      register: ({ username, email, password }) => {
+      register: async ({ username, email, password }) => {
         if (!validUsername(username)) return { ok: false, error: t("auth.errorUser") };
         if (password.length < 6) return { ok: false, error: t("auth.errorShort") };
         const taken = get().users.some(
@@ -299,28 +318,67 @@ export const useApp = create<AppState>()(
             u.username.toLowerCase() === username.toLowerCase() ||
             u.email.toLowerCase() === email.toLowerCase(),
         );
+        if (cloudEnabled()) {
+          const cloud = await cloudSignUp({
+            username,
+            email,
+            password,
+            timezone: detectTimezone(),
+          });
+          if (!cloud.ok) return cloud;
+          const user = makeAccount({
+            id: cloud.userId,
+            username,
+            email,
+            password,
+          });
+          set({
+            users: [...get().users.filter((u) => u.id !== user.id), user],
+            sessionUserId: user.id,
+          });
+          return { ok: true };
+        }
         if (taken) return { ok: false, error: t("auth.errorTaken") };
-        const user: Account = {
+        const user = makeAccount({
           id: uid(),
           username,
           email,
-          timezone: detectTimezone(),
-          createdAt: new Date().toISOString(),
-          onboarded: false,
-          theme: "ink",
-          notifyPoke: true,
-          notifyEvolution: true,
-          restDayOfWeek: null,
-          preferredWindow: null,
-          yearWrapSeen: null,
-          weeklyReviewSeen: null,
-          softDayCaps: {},
-          passwordHash: hashPass(password),
-        };
+          password,
+        });
         set({ users: [...get().users, user], sessionUserId: user.id });
         return { ok: true };
       },
-      login: (identifier, password) => {
+      login: async (identifier, password) => {
+        if (cloudEnabled()) {
+          const cloud = await cloudSignIn(identifier, password);
+          if (cloud.ok) {
+            const prev = get().users.find(
+              (u) =>
+                u.id === cloud.userId ||
+                u.email.toLowerCase() === cloud.email.toLowerCase() ||
+                u.username.toLowerCase() === cloud.username.toLowerCase(),
+            );
+            const user: Account = {
+              ...(prev ?? makeAccount({
+                id: cloud.userId,
+                username: cloud.username,
+                email: cloud.email,
+                password,
+              })),
+              id: cloud.userId,
+              username: cloud.username,
+              email: cloud.email,
+              passwordHash: hashPass(password),
+              onboarded: prev?.onboarded || cloud.onboarded,
+            };
+            set({
+              users: [...get().users.filter((u) => u.id !== user.id && u !== prev), user],
+              sessionUserId: user.id,
+            });
+            await get().syncCloudSocial();
+            return { ok: true };
+          }
+        }
         const key = identifier.trim().toLowerCase();
         const user = get().users.find(
           (u) =>
@@ -332,7 +390,62 @@ export const useApp = create<AppState>()(
         set({ sessionUserId: user.id });
         return { ok: true };
       },
-      logout: () => set({ sessionUserId: null }),
+      logout: () => {
+        void cloudSignOut();
+        set({ sessionUserId: null });
+      },
+      bootCloud: async () => {
+        const session = await cloudSession();
+        if (!session) return;
+        const prev = get().users.find((u) => u.id === session.userId);
+        const user: Account = prev
+          ? {
+              ...prev,
+              username: session.username || prev.username,
+              email: session.email || prev.email,
+              onboarded: prev.onboarded || session.onboarded,
+            }
+          : makeAccount({
+              id: session.userId,
+              username: session.username || "user",
+              email: session.email,
+              password: "",
+            });
+        if (!prev) {
+          set({ users: [...get().users, { ...user, onboarded: session.onboarded }], sessionUserId: session.userId });
+        } else {
+          set({
+            users: get().users.map((u) => (u.id === session.userId ? user : u)),
+            sessionUserId: session.userId,
+          });
+        }
+        await get().syncCloudSocial();
+        const mine = get().creatures.find((c) => c.ownerId === session.userId && c.status === "active");
+        if (mine) await cloudPublishCreature(mine);
+      },
+      syncCloudSocial: async () => {
+        const user = currentUser(get());
+        if (!user || !cloudEnabled()) return;
+        const pulled = await cloudPullSocial(user.id);
+        if (!pulled) return;
+        const remoteOwners = new Set(pulled.creatures.map((c) => c.ownerId));
+        set({
+          users: mergeCloudProfiles(get().users, pulled.profiles),
+          friendships: pulled.friendships,
+          notices: [
+            ...get().notices.filter((n) => n.userId !== user.id),
+            ...pulled.notices,
+          ],
+          pokes: pulled.pokes,
+          pairs: pulled.pairs,
+          creatures: [
+            ...get().creatures.filter(
+              (c) => c.ownerId === user.id || !remoteOwners.has(c.ownerId),
+            ),
+            ...pulled.creatures,
+          ],
+        });
+      },
       completeOnboarding: ({ creatureName, goals: drafts, speciesId, hueShift }) => {
         const user = currentUser(get());
         if (!user) return;
@@ -384,6 +497,8 @@ export const useApp = create<AppState>()(
           goals: [...get().goals, ...goals],
           tasks: [...get().tasks, ...tasks],
         });
+        void cloudSetOnboarded(user.id);
+        void cloudPublishCreature(creature);
       },
       addGoal: (draft) => {
         const user = currentUser(get());
@@ -690,6 +805,8 @@ export const useApp = create<AppState>()(
                 ? "bounce"
                 : "idle",
         });
+        const live = get().creatures.find((c) => c.ownerId === user.id && c.status === "active");
+        if (live) void cloudPublishCreature(live);
         return { streakJustHit, closed: false, hatched };
       },
       finalizePending: (now = new Date()) => {
@@ -994,6 +1111,8 @@ export const useApp = create<AppState>()(
           achievements: [...achievements, ...fresh],
           widgetAnim: streakBroke ? "worried" : widgetAnim,
         });
+        const published = get().creatures.find((c) => c.ownerId === user.id && c.status === "active");
+        if (published) void cloudPublishCreature(published);
       },
       updateSettings: (patch) => {
         const user = currentUser(get());
@@ -1002,21 +1121,37 @@ export const useApp = create<AppState>()(
           users: get().users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)),
         });
       },
-      addFriend: (username) => {
+      addFriend: async (raw) => {
         const user = currentUser(get());
         if (!user) return { ok: false, error: t("auth.errorGeneric") };
-        const other = get().users.find(
-          (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
-        );
+        const handle = parseFriendHandle(raw);
+        if (!handle) return { ok: false, error: t("community.notFound") };
+        if (cloudEnabled()) {
+          const other = await cloudLookupFriend(handle);
+          if (!other || other.id === user.id) {
+            return { ok: false, error: t("community.notFound") };
+          }
+          const exists = get().friendships.some(
+            (f) =>
+              (f.userA === user.id && f.userB === other.id) ||
+              (f.userB === user.id && f.userA === other.id),
+          );
+          if (exists) return { ok: false, error: t("community.already") };
+          const inserted = await cloudInsertFriendship(user.id, other.id, user.username);
+          if (!inserted.ok) return inserted;
+          await get().syncCloudSocial();
+          return { ok: true };
+        }
+        const other = get().users.find((u) => u.username.toLowerCase() === handle);
         if (!other || other.id === user.id) {
-          return { ok: false, error: t("community.empty") };
+          return { ok: false, error: t("community.notFound") };
         }
         const exists = get().friendships.some(
           (f) =>
             (f.userA === user.id && f.userB === other.id) ||
             (f.userB === user.id && f.userA === other.id),
         );
-        if (exists) return { ok: false, error: t("community.friends") };
+        if (exists) return { ok: false, error: t("community.already") };
         const request: Friendship = {
           id: uid(),
           userA: user.id,
@@ -1048,6 +1183,7 @@ export const useApp = create<AppState>()(
             f.id === id ? { ...f, status: "accepted" } : f,
           ),
         });
+        void cloudAcceptFriendship(id);
       },
       poke: (toUser) => {
         const user = currentUser(get());
@@ -1076,6 +1212,7 @@ export const useApp = create<AppState>()(
             },
           ],
         });
+        void cloudInsertPoke(user.id, toUser, today, user.username);
         return { ok: true };
       },
       bond: (friendUserId) => {
@@ -1125,10 +1262,7 @@ export const useApp = create<AppState>()(
               (p.userB === user.id && p.userA === friendUserId)),
         );
         if (already) return { ok: false };
-        set({
-          pairs: [
-            ...get().pairs,
-            {
+        const pair: Pair = {
               id: uid(),
               userA: user.id,
               userB: friendUserId,
@@ -1138,9 +1272,14 @@ export const useApp = create<AppState>()(
               syncPoints: 0,
               bondedAt: new Date().toISOString(),
               marriedAt: null,
-            },
+            };
+        set({
+          pairs: [
+            ...get().pairs,
+            pair,
           ],
         });
+        void cloudInsertPair(pair);
         return { ok: true };
       },
       markNoticesRead: () => {
@@ -1151,6 +1290,7 @@ export const useApp = create<AppState>()(
             n.userId === user.id ? { ...n, read: true } : n,
           ),
         });
+        void cloudMarkNoticesRead(user.id);
       },
       pushToast: (text) => {
         const id = uid();
@@ -1265,6 +1405,52 @@ export const useApp = create<AppState>()(
 
 function currentUser(state: AppState): Account | undefined {
   return state.users.find((u) => u.id === state.sessionUserId);
+}
+
+function makeAccount(input: {
+  id: string;
+  username: string;
+  email: string;
+  password: string;
+}): Account {
+  return {
+    id: input.id,
+    username: input.username,
+    email: input.email,
+    timezone: detectTimezone(),
+    createdAt: new Date().toISOString(),
+    onboarded: false,
+    theme: "ink",
+    notifyPoke: true,
+    notifyEvolution: true,
+    restDayOfWeek: null,
+    preferredWindow: null,
+    yearWrapSeen: null,
+    weeklyReviewSeen: null,
+    softDayCaps: {},
+    passwordHash: hashPass(input.password),
+  };
+}
+
+function mergeCloudProfiles(users: Account[], profiles: CloudProfile[]): Account[] {
+  const next = [...users];
+  for (const p of profiles) {
+    const i = next.findIndex((u) => u.id === p.id);
+    if (i >= 0) {
+      next[i] = { ...next[i], username: p.username || next[i].username };
+      continue;
+    }
+    next.push({
+      ...makeAccount({
+        id: p.id,
+        username: p.username,
+        email: p.email || `${p.id}@tofiby.cloud`,
+        password: "",
+      }),
+      onboarded: true,
+    });
+  }
+  return next;
 }
 
 function normalizeUser(u: Account): Account {

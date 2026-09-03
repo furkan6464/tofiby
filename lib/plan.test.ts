@@ -4,6 +4,7 @@ import {
   collectBusy,
   findFreeSlots,
   goalProgress,
+  goalWorkProgress,
   postponeTo,
   remainingToStreak,
   scheduleHours,
@@ -19,6 +20,22 @@ describe("plan", () => {
       { id: "3", goalId: "g", title: "B1", orderIndex: 2, weight: 2, completedAt: null },
     ];
     assert.equal(goalProgress(stones), 25);
+  });
+
+  it("counts only completed minutes toward goal work", () => {
+    const tasks = [
+      sampleTask({ id: "1", goalId: "g", date: "2026-09-03", estimatedDurationMinutes: 60, weight: 1, completed: true }),
+      sampleTask({ id: "2", goalId: "g", date: "2026-09-04", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "3", goalId: "g", date: "2026-09-05", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "4", goalId: "g", date: "2026-09-06", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "5", goalId: "g", date: "2026-09-07", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "6", goalId: "g", date: "2026-09-08", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "7", goalId: "g", date: "2026-09-09", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+      sampleTask({ id: "8", goalId: "g", date: "2026-09-10", estimatedDurationMinutes: 60, weight: 1, completed: false }),
+    ];
+    const work = goalWorkProgress(tasks);
+    assert.equal(work.minutes, 60);
+    assert.equal(work.pct, 13);
   });
 
   it("counts remaining tasks to hit the DCS streak threshold", () => {

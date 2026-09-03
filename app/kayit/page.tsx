@@ -22,9 +22,9 @@ export default function RegisterPage() {
       <p className="mt-2 text-muted">{t("auth.registerSubtitle")}</p>
       <form
         className="mt-8 space-y-4"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          const res = register({ username, email, password });
+          const res = await register({ username, email, password });
           if (!res.ok) setError(res.error);
           else router.push("/onboarding");
         }}

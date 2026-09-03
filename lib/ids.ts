@@ -17,3 +17,18 @@ export function hashPass(input: string): string {
 export function validUsername(name: string): boolean {
   return /^[a-zA-Z0-9_]{3,16}$/.test(name);
 }
+
+export function parseFriendHandle(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    const fromQuery = url.searchParams.get("ekle");
+    if (fromQuery) return fromQuery.replace(/^@/, "").toLowerCase();
+  } catch {
+    /* not a URL */
+  }
+  const handle = trimmed.replace(/^@/, "").split("/").pop() ?? trimmed;
+  const clean = handle.toLowerCase();
+  return validUsername(clean) ? clean : null;
+}

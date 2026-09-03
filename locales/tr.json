@@ -70,7 +70,8 @@
     "errorTaken": "Bu kullanıcı adı veya e-posta alınmış.",
     "errorCreds": "Kullanıcı adı, e-posta veya parola uyuşmuyor.",
     "errorShort": "Parola en az 6 karakter olmalı.",
-    "errorUser": "Kullanıcı adı 3-16 karakter, harf ve rakam."
+    "errorUser": "Kullanıcı adı 3-16 karakter, harf ve rakam.",
+    "confirmEmail": "E-posta onayı açık. Supabase → Authentication → Providers → Email içinde Confirm email’i kapat, sonra tekrar dene."
   },
   "landing": {
     "kicker": "Bir yıl kadar süren bir bağ",
@@ -311,6 +312,12 @@
     "accept": "Kabul et",
     "friends": "Arkadaşlar",
     "empty": "Henüz kimse yok. Bir kullanıcı adı yaz ya da davetini paylaş.",
+    "notFound": "Bu kullanıcı adı bulunamadı. Karşı tarafın da kayıt olup aynı kullanıcı adını kullandığından emin ol.",
+    "cloudSetup": "Sunucu henüz hazır değil. Supabase SQL Editor’da supabase/cloud.sql dosyasını çalıştır.",
+    "needCloudAccount": "Arkadaşlık için iki tarafın da e-posta ile yeni kayıt olmuş hesabı olmalı (eski yalnızca-cihaz hesapları sunucuya gitmez).",
+    "already": "Bu kişiyle zaten bir isteğiniz veya arkadaşlığınız var.",
+    "outgoing": "Gönderilen istekler",
+    "waiting": "Bekleniyor",
     "bond": "Bağ kur",
     "bonded": "Bağlı",
     "married": "Evli",
@@ -321,6 +328,7 @@
     "needAdult": "İkinizin de dostu evliliğe hazır olmalı.",
     "needFriends": "Bağ için en az 14 günlük arkadaşlık gerekir.",
     "privacy": "Görev detayları gizli. Sadece isim ve aşama görünür.",
+    "sent": "İstek gönderildi. Karşı taraf Topluluk sayfasında kabul edebilir.",
     "notices": "Bildirimler",
     "noticeEmpty": "Sessiz bir gece."
   },

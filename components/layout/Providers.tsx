@@ -23,21 +23,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
     useApp.persist.rehydrate();
     useApp.getState().setHydrated(true);
     useApp.getState().finalizePending();
+    void useApp.getState().bootCloud();
     setReady(true);
     const onVis = () => {
       if (document.visibilityState === "visible") {
         useApp.getState().finalizePending();
+        void useApp.getState().syncCloudSocial();
       }
     };
     const onOnline = () => useApp.getState().flushOffline();
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("online", onOnline);
+    const tick = window.setInterval(() => {
+      void useApp.getState().syncCloudSocial();
+    }, 20000);
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
+      window.clearInterval(tick);
     };
   }, []);
 

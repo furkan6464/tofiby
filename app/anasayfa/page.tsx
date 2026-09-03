@@ -13,7 +13,7 @@ import {
   useSession,
   useTodayBundle,
 } from "@/lib/store";
-import { goalProgress, overloadedWeekdays, remainingToStreak, weeklyReview } from "@/lib/plan";
+import { goalWorkProgress, overloadedWeekdays, remainingToStreak, weeklyReview } from "@/lib/plan";
 import { pickStoryKind } from "@/lib/bond";
 import { TaskRow } from "@/components/tasks/TaskRow";
 import { Card } from "@/components/ui/Card";
@@ -25,7 +25,6 @@ export default function HomePage() {
   const { tasks, score, date, rest } = useTodayBundle();
   const creature = useActiveCreature();
   const allGoals = useApp((s) => s.goals);
-  const milestones = useApp((s) => s.milestones);
   const allTasks = useApp((s) => s.tasks);
   const scores = useApp((s) => s.scores);
   const addTask = useApp((s) => s.addTask);
@@ -224,7 +223,7 @@ export default function HomePage() {
             <p className="text-sm text-muted">{t("goals.empty")}</p>
           ) : (
             goals.map((g) => {
-              const pctG = goalProgress(milestones.filter((m) => m.goalId === g.id));
+              const pctG = goalWorkProgress(allTasks.filter((x) => x.goalId === g.id)).pct;
               return (
                 <Link key={g.id} href={`/hedeflerim/${g.id}`} className="block">
                   <div className="mb-1 flex justify-between text-sm">

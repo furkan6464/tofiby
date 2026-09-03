@@ -20,6 +20,23 @@ export function goalProgress(milestones: Milestone[]): number {
   return Math.round((done / total) * 100);
 }
 
+export function isTaskDone(task: Task) {
+  return task.completed || task.status === "done";
+}
+
+/** Planned vs completed work — not estimated minutes on unfinished tasks. */
+export function goalWorkProgress(tasks: Task[]): { pct: number; minutes: number } {
+  const active = tasks.filter((t) => t.status !== "postponed");
+  const plannedMinutes = active.reduce((s, t) => s + (t.estimatedDurationMinutes ?? 0), 0);
+  const doneTasks = active.filter(isTaskDone);
+  const minutes = doneTasks.reduce((s, t) => s + (t.estimatedDurationMinutes ?? 0), 0);
+  if (plannedMinutes > 0) return { pct: Math.min(100, Math.round((minutes / plannedMinutes) * 100)), minutes };
+  const plannedDays = new Set(active.map((t) => t.date)).size;
+  const workedDays = new Set(doneTasks.map((t) => t.date)).size;
+  if (plannedDays > 0) return { pct: Math.min(100, Math.round((workedDays / plannedDays) * 100)), minutes };
+  return { pct: 0, minutes };
+}
+
 export function remainingToStreak(tasks: Task[]): {
   planned: number;
   done: number;
@@ -261,13 +278,13 @@ export function goalAnalytics(input: {
   );
   const plannedDays = new Set(last30.map((t) => t.date)).size;
   const workedDays = new Set(
-    last30.filter((t) => t.completed || t.status === "done").map((t) => t.date),
+    last30.filter(isTaskDone).map((t) => t.date),
   ).size;
   const dcsDays = [...new Set(last30.map((t) => t.date))].map((d) =>
     dailyCompletionScore(last30.filter((t) => t.date === d)),
   );
   const avg = dcsDays.filter((x) => x !== null) as number[];
-  const minutes = last30.reduce((s, t) => s + (t.estimatedDurationMinutes ?? 0), 0);
+  const work = goalWorkProgress(last30);
   let streak = 0;
   let best = 0;
   const days = [...new Set(related.map((t) => t.date))].sort();
@@ -291,11 +308,11 @@ export function goalAnalytics(input: {
     ? Math.max(0, Math.round((Date.parse(`${input.goal.targetDate}T00:00:00Z`) - Date.parse(`${input.today}T00:00:00Z`)) / 86_400_000))
     : null;
   return {
-    pct: goalProgress(input.milestones),
+    pct: work.pct,
     plannedDays,
     workedDays,
     avgDcs: avg.length ? avg.reduce((a, b) => a + b, 0) / avg.length : 0,
-    minutes,
+    minutes: work.minutes,
     longest: best,
     last7,
     remain,

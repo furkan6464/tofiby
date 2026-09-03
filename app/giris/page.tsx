@@ -27,9 +27,9 @@ export default function LoginPage() {
       <p className="mt-2 text-muted">{t("auth.loginSubtitle")}</p>
       <form
         className="mt-8 space-y-4"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          const res = login(identifier, password);
+          const res = await login(identifier, password);
           if (!res.ok) setError(res.error);
           else router.push("/anasayfa");
         }}
