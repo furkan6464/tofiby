@@ -27,7 +27,9 @@
     "settings": "Ayarlar",
     "logout": "Çıkış",
     "productivity": "Üretkenlik",
-    "creatureCol": "Dost"
+    "creatureCol": "Dost",
+    "collapse": "Menüyü kapat",
+    "expand": "Menüyü aç"
   },
   "common": {
     "continue": "İleri",

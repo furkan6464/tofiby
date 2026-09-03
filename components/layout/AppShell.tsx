@@ -1,14 +1,30 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DesktopNav, MobileTabs } from "./Nav";
 import { CreatureBar, CreatureRail } from "../creature/CreatureWidget";
 import { CommandPalette } from "../search/CommandPalette";
 import { CalendarTopBar } from "../calendar/CalendarTopBar";
 
+const NAV_OPEN_KEY = "tofiby-nav-open";
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const calendar = path === "/takvim" || path.startsWith("/takvim/");
+  const [navOpen, setNavOpen] = useState(true);
+
+  useEffect(() => {
+    if (localStorage.getItem(NAV_OPEN_KEY) === "0") setNavOpen(false);
+  }, []);
+
+  const toggleNav = () => {
+    setNavOpen((open) => {
+      const next = !open;
+      localStorage.setItem(NAV_OPEN_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
 
   return (
     <>
@@ -19,8 +35,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : (
         <div className="hidden min-h-dvh lg:flex">
-          <DesktopNav />
-          <div className="min-w-0 flex-1 overflow-y-auto">{children}</div>
+          <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
+          <div
+            className={`min-w-0 flex-1 overflow-y-auto ${
+              navOpen ? "" : "[&_main]:!max-w-none"
+            }`}
+          >
+            {children}
+          </div>
           <CreatureRail />
         </div>
       )}
