@@ -310,12 +310,71 @@ export function scoreFromTasks(
   };
 }
 
+/** Absolute effort signal for a scored day (GP preferred; falls back to DCS × base). */
+export function dayHeatEffort(score: DailyScore): number {
+  if (score.dcs === null || score.dcs <= 0) return 0;
+  return Math.max(score.gpEarned, score.dcs * GAME_CONFIG.BASE_POINTS_PER_DAY);
+}
+
+/**
+ * Continuous heat intensity ∈ [0, 1].
+ * Blends completion quality (DCS) with relative effort vs the year's p90,
+ * so a light day stays dusty pink and a heavy day goes dark pink — not discrete jumps.
+ */
+export function heatIntensity(
+  score: DailyScore | undefined,
+  peerEfforts: number[],
+  /** Completed weight or GP-based effort for this day. */
+  effort?: number,
+): number {
+  if (!score || score.dcs === null || score.dcs <= 0) return 0;
+
+  const self = effort !== undefined && effort > 0 ? effort : dayHeatEffort(score);
+  const active = peerEfforts.filter((e) => e > 0);
+
+  let relative = score.dcs;
+  if (active.length >= 3) {
+    const sorted = [...active].sort((a, b) => a - b);
+    const p90 = sorted[Math.max(0, Math.ceil(sorted.length * 0.9) - 1)];
+    relative = Math.min(1, self / Math.max(p90, 1e-9));
+  } else {
+    const fullDay = GAME_CONFIG.BASE_POINTS_PER_DAY * consistencyMultiplier(7);
+    relative = Math.min(1, self / Math.max(fullDay, 1e-9));
+  }
+
+  // 40% quality + 60% relative volume; gamma < 1 separates mid-range days.
+  const blended = 0.4 * score.dcs + 0.6 * relative;
+  const t = 0.14 + 0.86 * blended;
+  return Math.min(1, Math.pow(Math.max(0, t), 0.72));
+}
+
+/** Dusty pink → dark pink continuous ramp (no purple). */
+export function heatColor(intensity: number): string {
+  if (intensity <= 0) return "var(--heat-0)";
+  const stops: [number, number, number][] = [
+    [92, 52, 72], // toz pembe
+    [148, 48, 98],
+    [196, 32, 108],
+    [148, 10, 68], // koyu pembe
+  ];
+  const x = intensity * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(x));
+  const f = x - i;
+  const a = stops[i];
+  const b = stops[i + 1];
+  const r = Math.round(a[0] + (b[0] - a[0]) * f);
+  const g = Math.round(a[1] + (b[1] - a[1]) * f);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * f);
+  return `rgb(${r} ${g} ${bl})`;
+}
+
 export function heatLevel(score: DailyScore | undefined): 0 | 1 | 2 | 3 | 4 {
-  if (!score || score.dcs === null || score.dcs === 0) return 0;
-  if (score.isStreakDay) return 4;
-  if (score.dcs >= 0.7) return 3;
-  if (score.dcs >= 0.4) return 2;
-  return 1;
+  const t = heatIntensity(score, score ? [dayHeatEffort(score)] : []);
+  if (t <= 0) return 0;
+  if (t < 0.28) return 1;
+  if (t < 0.52) return 2;
+  if (t < 0.78) return 3;
+  return 4;
 }
 
 export function fairnessScenario(): {

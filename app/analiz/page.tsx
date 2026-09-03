@@ -82,7 +82,7 @@ export default function AnalyticsPage() {
           today={today}
           scores={heatScores}
           userId={user.id}
-          since={user.createdAt.slice(0, 10)}
+          tasks={tasks}
         />
       </Card>
       <Card className="mt-4 space-y-3 p-5">

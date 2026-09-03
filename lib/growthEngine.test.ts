@@ -7,6 +7,8 @@ import {
   dailyCompletionScore,
   dailyGp,
   fairnessScenario,
+  heatColor,
+  heatIntensity,
   isStreakDay,
   isUnionReady,
   nextHealth,
@@ -235,5 +237,32 @@ describe("growthEngine", () => {
       task({ id: "c", weight: 1, completed: false, status: "postponed" }),
     ]);
     assert.equal(dcs, 1);
+  });
+
+  it("maps light work to dusty pink and heavy work to darker pink", () => {
+    const light = {
+      userId: "u",
+      date: "2026-01-01",
+      dcs: 0.25,
+      isStreakDay: false,
+      gpEarned: 2,
+      finalized: true,
+    };
+    const heavy = {
+      userId: "u",
+      date: "2026-01-02",
+      dcs: 1,
+      isStreakDay: true,
+      gpEarned: 18,
+      finalized: true,
+    };
+    const peers = [2, 18];
+    const lo = heatIntensity(light, peers, 2);
+    const hi = heatIntensity(heavy, peers, 18);
+    assert.ok(lo > 0 && lo < hi);
+    assert.ok(hi > 0.55);
+    assert.equal(heatColor(0), "var(--heat-0)");
+    assert.match(heatColor(lo), /^rgb\(/);
+    assert.match(heatColor(hi), /^rgb\(/);
   });
 });
