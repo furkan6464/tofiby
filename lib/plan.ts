@@ -131,6 +131,7 @@ export function insightBundle(input: {
   goals: Goal[];
 }) {
   const from30 = Date.parse(`${input.today}T00:00:00Z`) - 30 * 86_400_000;
+  const todayTs = Date.parse(`${input.today}T00:00:00Z`);
   const window = input.scores.filter(
     (s) => s.userId === input.userId && Date.parse(`${s.date}T00:00:00Z`) >= from30,
   );
@@ -144,8 +145,13 @@ export function insightBundle(input: {
   const avgLast = last.length ? last.reduce((s, x) => s + (x.dcs ?? 0), 0) / last.length : avg;
   const delta = Math.round((avgLast - avgFirst) * 100);
   const mine = input.tasks.filter((t) => t.userId === input.userId && t.status !== "postponed");
-  const days = new Set(window.map((s) => s.date)).size || 1;
-  const avgTasks = mine.filter((t) => Date.parse(`${t.date}T00:00:00Z`) >= from30).length / days;
+  // Only past+today — future horizon tasks must not inflate the average.
+  const recent = mine.filter((t) => {
+    const ts = Date.parse(`${t.date}T00:00:00Z`);
+    return ts >= from30 && ts <= todayTs;
+  });
+  const dayCount = new Set(recent.map((t) => t.date)).size || 1;
+  const avgTasks = recent.length / dayCount;
   const routine = analyzeRoutine(mine, input.timezone, input.today);
   const byGoal = input.goals
     .filter((g) => g.userId === input.userId && g.status === "active")
@@ -154,6 +160,7 @@ export function insightBundle(input: {
       const dcs = dcsForGoal(related, g.id);
       return { id: g.id, title: g.title, dcs: dcs ?? 0 };
     })
+    .filter((g) => g.dcs > 0)
     .sort((a, b) => b.dcs - a.dcs);
   return {
     consistencyPct: Math.round(avg * 100),

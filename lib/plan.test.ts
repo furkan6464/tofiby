@@ -5,6 +5,7 @@ import {
   findFreeSlots,
   goalProgress,
   goalWorkProgress,
+  insightBundle,
   postponeTo,
   remainingToStreak,
   scheduleHours,
@@ -36,6 +37,29 @@ describe("plan", () => {
     const work = goalWorkProgress(tasks);
     assert.equal(work.minutes, 60);
     assert.equal(work.pct, 13);
+  });
+
+  it("does not inflate avg daily tasks with future horizon tasks", () => {
+    const tasks = [
+      sampleTask({ id: "1", date: "2026-09-03", weight: 1, completed: true }),
+      ...Array.from({ length: 100 }, (_, i) =>
+        sampleTask({
+          id: `f${i}`,
+          date: `2026-10-${String((i % 28) + 1).padStart(2, "0")}`,
+          weight: 1,
+          completed: false,
+        }),
+      ),
+    ];
+    const bundle = insightBundle({
+      userId: "u",
+      today: "2026-09-03",
+      timezone: "Europe/Istanbul",
+      tasks,
+      scores: [],
+      goals: [],
+    });
+    assert.ok(bundle.avgTasks <= 2);
   });
 
   it("counts remaining tasks to hit the DCS streak threshold", () => {
