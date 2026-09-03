@@ -260,7 +260,8 @@ describe("growthEngine", () => {
     const lo = heatIntensity(light, peers, 2);
     const hi = heatIntensity(heavy, peers, 18);
     assert.ok(lo > 0 && lo < hi);
-    assert.ok(hi > 0.55);
+    assert.ok(lo < 0.45, "light day stays in dusty band");
+    assert.ok(hi > 0.55, "heavy day reads clearly darker");
     assert.equal(heatColor(0), "var(--heat-0)");
     assert.match(heatColor(lo), /^rgb\(/);
     assert.match(heatColor(hi), /^rgb\(/);

@@ -318,8 +318,7 @@ export function dayHeatEffort(score: DailyScore): number {
 
 /**
  * Continuous heat intensity ∈ [0, 1].
- * Blends completion quality (DCS) with relative effort vs the year's p90,
- * so a light day stays dusty pink and a heavy day goes dark pink — not discrete jumps.
+ * Light days stay in the sweet dusty band; only heavy relative effort reaches dark pink.
  */
 export function heatIntensity(
   score: DailyScore | undefined,
@@ -338,24 +337,24 @@ export function heatIntensity(
     const p90 = sorted[Math.max(0, Math.ceil(sorted.length * 0.9) - 1)];
     relative = Math.min(1, self / Math.max(p90, 1e-9));
   } else {
-    const fullDay = GAME_CONFIG.BASE_POINTS_PER_DAY * consistencyMultiplier(7);
-    relative = Math.min(1, self / Math.max(fullDay, 1e-9));
+    // Strong-day baseline (≈2-week streak full DCS) so a normal day stays dusty, not max.
+    const strongDay = GAME_CONFIG.BASE_POINTS_PER_DAY * consistencyMultiplier(14);
+    relative = Math.min(1, self / Math.max(strongDay, 1e-9));
   }
 
-  // 40% quality + 60% relative volume; gamma < 1 separates mid-range days.
-  const blended = 0.4 * score.dcs + 0.6 * relative;
-  const t = 0.14 + 0.86 * blended;
-  return Math.min(1, Math.pow(Math.max(0, t), 0.72));
+  // Prefer volume for contrast; quality still matters. Gamma > 1 keeps light days soft.
+  const blended = 0.35 * score.dcs + 0.65 * relative;
+  return Math.min(1, Math.pow(Math.max(0, blended), 1.35));
 }
 
-/** Dusty pink → dark pink continuous ramp (no purple). */
+/** Sweet dusty pink → dark pink. Low end stays soft so hard days read clearly darker. */
 export function heatColor(intensity: number): string {
   if (intensity <= 0) return "var(--heat-0)";
   const stops: [number, number, number][] = [
-    [92, 52, 72], // toz pembe
-    [148, 48, 98],
-    [196, 32, 108],
-    [148, 10, 68], // koyu pembe
+    [214, 168, 186], // tatlı toz pembe
+    [196, 118, 152],
+    [168, 58, 108],
+    [108, 18, 58], // koyu pembe
   ];
   const x = intensity * (stops.length - 1);
   const i = Math.min(stops.length - 2, Math.floor(x));
