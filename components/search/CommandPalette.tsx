@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { addDays, prettyDate, todayKey } from "@/lib/dates";
 import { useActiveCreature, useApp, useSession } from "@/lib/store";
@@ -101,11 +102,27 @@ export function CommandPalette() {
     return out.slice(0, 12);
   }, [user, q, goals, tasks, creature, today]);
 
+  function close() {
+    setOpen(false);
+    setQuery("");
+  }
+
   if (!open || !user) return null;
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/50 pt-[15vh]">
-      <div className="w-[min(32rem,92vw)] rounded-nest border border-white/[0.06] bg-surface p-3">
-        <p className="px-2 pb-2 text-xs text-faint">{t("search.title")}</p>
+      <button className="absolute inset-0" aria-label={t("common.close")} onClick={close} />
+      <div className="relative z-10 w-[min(32rem,92vw)] rounded-nest border border-white/[0.06] bg-surface p-3">
+        <div className="mb-1 flex items-center justify-between px-2">
+          <p className="text-xs text-faint">{t("search.title")}</p>
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            className="flex h-6 w-6 items-center justify-center rounded-full text-faint hover:bg-white/5 hover:text-ink"
+            onClick={close}
+          >
+            <X size={14} strokeWidth={2} />
+          </button>
+        </div>
         <input
           autoFocus
           className="w-full px-3 py-2"
