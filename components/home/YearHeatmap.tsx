@@ -43,12 +43,15 @@ export function YearHeatmap({
     y: number;
   } | null>(null);
 
+  // Short journeys get bigger cells; long ones still fill the card without a scrollbar.
+  const cell = weeks.length <= 4 ? 16 : weeks.length <= 12 ? 13 : weeks.length <= 26 ? 11 : 9;
+
   return (
     <div className="relative w-full">
-      <p className="mb-2 text-xs text-faint">{t("home.heatTitleJourney")}</p>
-      <div className="flex w-full gap-[3px]">
+      <p className="mb-3 text-xs text-faint">{t("home.heatTitleJourney")}</p>
+      <div className="flex flex-wrap items-start gap-[3px]">
         {weeks.map((week, wi) => (
-          <div key={wi} className="flex min-w-0 flex-1 flex-col gap-[3px]">
+          <div key={wi} className="flex flex-col gap-[3px]">
             {week.map((d) => {
               const score = byDate.get(d);
               const level = heatLevel(score);
@@ -72,8 +75,10 @@ export function YearHeatmap({
                     });
                   }}
                   onMouseLeave={() => setTip(null)}
-                  className="aspect-square w-full min-h-[8px] rounded-[2px]"
                   style={{
+                    width: cell,
+                    height: cell,
+                    borderRadius: 2,
                     background: hidden ? "transparent" : COLORS[level],
                     opacity: hidden ? 0 : 1,
                   }}
