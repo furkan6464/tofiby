@@ -58,7 +58,7 @@ export function DesktopNav({
   const creature = useActiveCreature();
   return (
     <aside
-      className={`flex h-dvh shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-base py-6 transition-[width] duration-200 ease-out ${
+      className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-base py-6 transition-[width] duration-200 ease-out ${
         collapsed ? "w-12 px-1.5" : "w-[13.5rem] px-4"
       }`}
     >

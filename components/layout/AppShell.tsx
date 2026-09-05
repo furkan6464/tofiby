@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DesktopNav, MobileTabs } from "./Nav";
-import { CreatureBar, CreatureRail } from "../creature/CreatureWidget";
+import { AiRailDock, CreatureBar, CreatureRail } from "../creature/CreatureWidget";
 import { CommandPalette } from "../search/CommandPalette";
 import { CalendarTopBar } from "../calendar/CalendarTopBar";
 import { AiConsentHost } from "../ai/AiConsent";
@@ -36,15 +36,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
         </div>
       ) : (
-        <div className="hidden min-h-dvh lg:flex">
+        <div className="hidden h-dvh overflow-hidden lg:flex">
           <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
           <div
-            className={`min-w-0 flex-1 overflow-y-auto ${
+            className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${
               navOpen ? "" : "[&_main]:!max-w-none"
             }`}
           >
             {children}
           </div>
+          <AiRailDock />
           <CreatureRail />
         </div>
       )}
