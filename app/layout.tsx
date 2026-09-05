@@ -48,6 +48,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" className={`${display.variable} ${sans.variable} ${pixel.variable}`}>
       <body className="antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function bust(){if(sessionStorage.getItem("tf-sw-bust"))return;sessionStorage.setItem("tf-sw-bust","1");if(!("serviceWorker"in navigator)){location.reload();return}Promise.all([navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}),caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))})]).then(function(){location.reload()}).catch(function(){location.reload()})}window.addEventListener("error",function(e){var t=e.target;var u=(t&&(t.src||t.href))||"";if(u.indexOf("/_next/static/")!==-1)bust()},true)})();`,
+          }}
+        />
         <div className="grain" aria-hidden />
         <Providers>{children}</Providers>
       </body>
