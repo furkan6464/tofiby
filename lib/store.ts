@@ -762,7 +762,7 @@ export const useApp = create<AppState>()(
             (c) => c.fromUser !== user.id && c.toUser !== user.id,
           ),
           achievements: get().achievements.filter((a) => a.userId !== user.id),
-          chatThreads: get().chatThreads.filter((c) => c.userId !== user.id),
+          chatThreads: (get().chatThreads ?? []).filter((c) => c.userId !== user.id),
           offlineOps: [],
         });
         return { ok: true };
@@ -1556,13 +1556,14 @@ export const useApp = create<AppState>()(
           updatedAt: new Date().toISOString(),
           messages: messages.slice(-80),
         };
-        const mine = get().chatThreads.filter((c) => c.userId === user.id && c.id !== threadId);
-        const others = get().chatThreads.filter((c) => c.userId !== user.id);
+        const all = get().chatThreads ?? [];
+        const mine = all.filter((c) => c.userId === user.id && c.id !== threadId);
+        const others = all.filter((c) => c.userId !== user.id);
         set({ chatThreads: [...others, thread, ...mine].slice(0, others.length + 40) });
         return threadId;
       },
       deleteChatThread: (id) => {
-        set({ chatThreads: get().chatThreads.filter((c) => c.id !== id) });
+        set({ chatThreads: (get().chatThreads ?? []).filter((c) => c.id !== id) });
       },
     }),
     {

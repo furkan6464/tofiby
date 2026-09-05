@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { History, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { friendName, t } from "@/lib/i18n";
 import { chat, parseSchedule } from "@/lib/ai";
@@ -18,6 +19,7 @@ import { LessonEditor } from "./LessonEditor";
 type Bubble = ChatMessage & { links?: ChatReply["links"] };
 
 export function FriendChatHost() {
+  const path = usePathname();
   const [open, setOpen] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
@@ -32,6 +34,10 @@ export function FriendChatHost() {
     window.addEventListener("tofiby:aichat", on);
     return () => window.removeEventListener("tofiby:aichat", on);
   }, []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [path]);
 
   if (!open) return null;
   return (
@@ -58,7 +64,7 @@ function FriendChat({
   const user = useSession();
   const creature = useActiveCreature();
   const goals = useApp((s) => s.goals);
-  const threads = useApp((s) => s.chatThreads);
+  const threads = useApp((s) => s.chatThreads ?? []);
   const addRecurringSessions = useApp((s) => s.addRecurringSessions);
   const addTask = useApp((s) => s.addTask);
   const saveChatThread = useApp((s) => s.saveChatThread);

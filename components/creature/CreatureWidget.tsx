@@ -19,9 +19,8 @@ import { friendName, t } from "@/lib/i18n";
 import { Progress } from "../ui/Progress";
 import { CreatureView } from "./CreatureView";
 import { StageProgress } from "./StageProgress";
-import { openAiChat, openAiHistory } from "@/lib/ai";
+import { openAiChat } from "@/lib/ai";
 import { AiChatOrb } from "@/components/ai/AiChatOrb";
-import { History } from "lucide-react";
 import type { SpriteState } from "@/data/creatures/types";
 
 function useCreaturePanel() {
@@ -211,15 +210,7 @@ export function AiRailDock() {
   const { user, creature } = useCreaturePanel();
   if (!user || !creature) return null;
   return (
-    <div className="flex h-full w-[4.75rem] shrink-0 flex-col items-center justify-end gap-3 pb-5">
-      <button
-        type="button"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-muted hover:border-pink/50 hover:text-pink"
-        aria-label={t("ai.history")}
-        onClick={openAiHistory}
-      >
-        <History size={15} />
-      </button>
+    <div className="flex h-full w-[4.75rem] shrink-0 flex-col items-center justify-end pb-5">
       <AiChatOrb
         speciesId={creature.speciesId}
         stage={creature.stage}
@@ -265,14 +256,6 @@ export function CreatureBar() {
         genetics={creature.genetics}
         onClick={() => openAiChat()}
       />
-      <button
-        type="button"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-muted"
-        aria-label={t("ai.history")}
-        onClick={openAiHistory}
-      >
-        <History size={15} />
-      </button>
     </header>
   );
 }

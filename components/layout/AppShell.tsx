@@ -30,28 +30,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {calendar ? (
-        <div className="hidden h-dvh flex-col lg:flex">
+      <div
+        className={
+          calendar
+            ? "flex h-dvh flex-col overflow-hidden"
+            : "flex h-dvh flex-col overflow-hidden lg:flex-row"
+        }
+      >
+        {calendar ? (
           <CalendarTopBar />
-          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+        ) : (
+          <>
+            <div className="hidden h-full lg:contents">
+              <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
+            </div>
+            <div className="lg:hidden">
+              <CreatureBar />
+            </div>
+          </>
+        )}
+        <div
+          className={`min-h-0 min-w-0 flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0 ${
+            calendar ? "overflow-hidden" : "overflow-y-auto"
+          } ${!calendar && !navOpen ? "[&_main]:!max-w-none" : ""}`}
+        >
+          {children}
         </div>
-      ) : (
-        <div className="hidden h-dvh overflow-hidden lg:flex">
-          <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
-          <div
-            className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${
-              navOpen ? "" : "[&_main]:!max-w-none"
-            }`}
-          >
-            {children}
+        {calendar ? null : (
+          <div className="hidden h-full lg:flex">
+            <AiRailDock />
+            <CreatureRail />
           </div>
-          <AiRailDock />
-          <CreatureRail />
-        </div>
-      )}
-      <div className="min-h-dvh lg:hidden">
-        {calendar ? <CalendarTopBar /> : <CreatureBar />}
-        <div className="pb-[calc(4.75rem+env(safe-area-inset-bottom))]">{children}</div>
+        )}
         <MobileTabs />
       </div>
       <FriendChatHost />
