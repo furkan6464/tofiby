@@ -109,6 +109,45 @@ export function weekdayFromLabel(raw: string): number | null {
   return null;
 }
 
+function asJsonSchema(schema: JsonSchema): JsonSchema {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== "object") return node;
+    const src = node as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (k === "type" && typeof v === "string") out.type = v.toLowerCase();
+      else out[k] = walk(v);
+    }
+    return out;
+  };
+  return walk(schema) as JsonSchema;
+}
+
+async function geminiOnce(
+  key: string,
+  body: Record<string, unknown>,
+  useQueryKey: boolean,
+): Promise<{ status: number; text: string }> {
+  const base = `${GEMINI_URL}/${geminiModel()}:generateContent`;
+  const url = useQueryKey ? `${base}?key=${encodeURIComponent(key)}` : base;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (!useQueryKey) headers["x-goog-api-key"] = key;
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  return { status: res.status, text: await res.text() };
+}
+
+function extractGeminiText(raw: string): string {
+  try {
+    const json = JSON.parse(raw) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    return json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? raw;
+  } catch {
+    return raw;
+  }
+}
+
 async function geminiJson(input: {
   system: string;
   messages: ChatMessage[];
@@ -121,37 +160,40 @@ async function geminiJson(input: {
   const contents = input.messages.map((m, i) => {
     const parts: Record<string, unknown>[] = [{ text: m.text }];
     if (i === input.messages.length - 1 && m.role === "user" && input.file) {
-      parts.push({ inline_data: { mime_type: input.file.mime, data: input.file.data } });
+      parts.push({ inlineData: { mimeType: input.file.mime, data: input.file.data } });
     }
     return { role: m.role === "model" ? "model" : "user", parts };
   });
-  const res = await fetch(`${GEMINI_URL}/${geminiModel()}:generateContent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": key,
+  const base = {
+    system_instruction: { parts: [{ text: input.system }] },
+    contents,
+  };
+  const configs: Record<string, unknown>[] = [
+    {
+      temperature: input.temperature ?? 0.3,
+      responseMimeType: "application/json",
+      responseJsonSchema: asJsonSchema(input.schema),
     },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: input.system }] },
-      contents,
-      generationConfig: {
-        temperature: input.temperature ?? 0.3,
-        responseMimeType: "application/json",
-        responseSchema: input.schema,
-      },
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) return { status: res.status, text };
-  try {
-    const json = JSON.parse(text) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const out = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-    return { status: 200, text: out || text };
-  } catch {
-    return { status: 200, text };
+    {
+      temperature: input.temperature ?? 0.3,
+      responseMimeType: "application/json",
+      responseSchema: input.schema,
+    },
+    { temperature: input.temperature ?? 0.3, responseMimeType: "application/json" },
+  ];
+  let last = { status: 503, text: "gemini empty" };
+  for (const useQueryKey of [false, true]) {
+    for (const generationConfig of configs) {
+      last = await geminiOnce(key, { ...base, generationConfig }, useQueryKey);
+      if (last.status === 200) {
+        const out = extractGeminiText(last.text);
+        return { status: 200, text: out || last.text };
+      }
+      if (last.status === 429) return last;
+    }
   }
+  console.error("[ai] gemini failed", last.status, last.text.slice(0, 240));
+  return last;
 }
 
 async function groqJson(input: {
@@ -216,17 +258,11 @@ async function completeJson<T>(input: {
       const parsed = input.parse(parseJsonText(gemini.text));
       if (parsed) return { ok: true, data: parsed };
     } catch {
-      /* fall through */
+      /* fall through to Groq for text */
     }
-    return fail("unavailable");
-  }
-
-  if (input.file || !input.allowGroq) {
+    if (input.file || !input.allowGroq) return fail("unavailable");
+  } else if (input.file || !input.allowGroq) {
     return fail(isRateLimit(gemini.status, gemini.text) ? "rate_limited" : "unavailable");
-  }
-
-  if (!isRateLimit(gemini.status, gemini.text) && gemini.status < 500 && gemini.status !== 503) {
-    return fail("unavailable");
   }
 
   let groq: { status: number; text: string };
@@ -236,6 +272,7 @@ async function completeJson<T>(input: {
     return fail(isRateLimit(gemini.status, gemini.text) ? "rate_limited" : "unavailable");
   }
   if (groq.status !== 200) {
+    console.error("[ai] groq failed", groq.status, groq.text.slice(0, 240));
     return fail(isRateLimit(groq.status, groq.text) ? "rate_limited" : "unavailable");
   }
   try {
