@@ -284,6 +284,19 @@ export interface Notice {
   href?: string;
 }
 
+export interface ChatThreadMessage {
+  role: "user" | "model";
+  text: string;
+}
+
+export interface ChatThread {
+  id: string;
+  userId: string;
+  title: string;
+  updatedAt: string;
+  messages: ChatThreadMessage[];
+}
+
 export type AnimationState =
   | "idle"
   | "blink"

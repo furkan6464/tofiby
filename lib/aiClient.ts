@@ -2,6 +2,7 @@ import { gameRulesForAi, routeMapForAi } from "./aiRules";
 import type {
   AiFail,
   AiResult,
+  ChatCalendarAdd,
   ChatMessage,
   ChatReply,
   CreatureSnapshot,
@@ -364,6 +365,21 @@ const CHAT_SCHEMA: JsonSchema = {
         required: ["label", "href"],
       },
     },
+    calendarAdds: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title: { type: "STRING" },
+          date: { type: "STRING" },
+          weekday: { type: "INTEGER" },
+          recurring: { type: "BOOLEAN" },
+          start: { type: "STRING" },
+          end: { type: "STRING" },
+        },
+        required: ["title", "start", "end"],
+      },
+    },
   },
   required: ["reply"],
 };
@@ -510,8 +526,11 @@ export async function chat(
     gameRulesForAi(),
     routeMapForAi(),
     "Büyüme tavsiyesinde yalnızca yukarıdaki gerçek formülleri ve kullanıcının güncel sayılarını kullan.",
-    "Ders programı için soldaki ataşla fotoğraf veya PDF eklemelerini söyle. Programı metinden uydurma.",
-    "Kullanıcının güncel durumu:",
+    "Ders programı fotoğrafı için ataşla dosya eklemelerini söyle. Programı görüntüden uydurma.",
+    "Takvime görev EKLEME. Sen yazamazsın. Kullanıcı saat/gün verirse calendarAdds doldur.",
+    "ASLA 'ekledim', 'yazdım', 'koydum' deme. Reply'de 'onaylarsan eklerim' de. Onay kutusu uygulamada çıkar.",
+    "calendarAdds: title, start ve end HH:MM. Tek seferlik: recurring=false, date=YYYY-MM-DD (bugün snapshot.today). Yarın: bir gün sonrası. Her hafta: recurring=true ve weekday 0=Pazar … 6=Cumartesi.",
+    "Saat yoksa sormadan uydurma. Kullanıcının güncel durumu:",
     JSON.stringify(snapshot),
   ].join("\n\n");
   const recent = messages.slice(-12);
@@ -519,7 +538,8 @@ export async function chat(
     system,
     messages: recent.length ? recent : [{ role: "user", text: "Merhaba" }],
     schema: CHAT_SCHEMA,
-    schemaHint: '{ "reply": "…", "links": [{ "label": "Hedeflere git", "href": "/hedeflerim" }] }',
+    schemaHint:
+      '{ "reply": "…", "links": [{ "label": "Takvime git", "href": "/takvim" }], "calendarAdds": [{ "title": "İngilizce", "date": "2026-09-05", "weekday": null, "recurring": false, "start": "19:00", "end": "20:00" }] }',
     allowGroq: true,
     temperature: 0.5,
     parse: (raw) => {
@@ -549,7 +569,38 @@ export async function chat(
             })
             .filter((x): x is ChatReply["links"][number] => Boolean(x))
         : [];
-      return { reply, links };
+      const today = String(snapshot?.today ?? "").slice(0, 10);
+      const calendarAdds = parseCalendarAdds(r.calendarAdds, today, Number(snapshot?.weekday));
+      return { reply, links, calendarAdds };
     },
   });
+}
+
+function parseCalendarAdds(raw: unknown, today: string, todayWeekday: number): ChatCalendarAdd[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatCalendarAdd[] = [];
+  for (const item of raw) {
+    const row = item as Record<string, unknown>;
+    const title = String(row.title ?? "").trim();
+    const start = normalizeTime(String(row.start ?? ""));
+    if (!title || !start) continue;
+    const end = normalizeTime(String(row.end ?? "")) ?? start;
+    const recurring = Boolean(row.recurring);
+    const dateRaw = String(row.date ?? "").trim();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : today || null;
+    let weekday = weekdayFromLabel(String(row.weekday ?? ""));
+    if (weekday === null && Number.isInteger(Number(row.weekday))) {
+      const n = Number(row.weekday);
+      if (n >= 0 && n <= 6) weekday = n;
+    }
+    out.push({
+      title,
+      date: recurring ? null : date,
+      weekday: recurring ? (weekday ?? (Number.isFinite(todayWeekday) ? todayWeekday : null)) : null,
+      recurring,
+      start,
+      end,
+    });
+  }
+  return out;
 }

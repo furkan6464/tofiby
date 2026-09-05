@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Progress } from "@/components/ui/Progress";
-import { planGoal, useAiEnabled, weekFreeWindows } from "@/lib/ai";
+import { planGoal, requestAiAccess, weekFreeWindows } from "@/lib/ai";
 import { aiErrorText } from "@/lib/aiCopy";
 import type { GoalPlanDraft } from "@/lib/aiTypes";
 import { ConfirmList } from "@/components/ai/ConfirmList";
@@ -38,7 +38,6 @@ export default function GoalsPage() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const [aiPlan, setAiPlan] = useState<GoalPlanDraft | null>(null);
-  const aiOn = useAiEnabled();
   const busySlots = useApp((s) => s.busySlots);
 
   if (!user) return null;
@@ -231,13 +230,13 @@ export default function GoalsPage() {
               />
             ))}
           </div>
-          {aiOn ? (
-            <Button
-              tone="ghost"
-              className="w-full"
-              type="button"
-              disabled={aiBusy || !title.trim()}
-              onClick={async () => {
+          <Button
+            tone="ghost"
+            className="w-full"
+            type="button"
+            disabled={aiBusy || !title.trim()}
+            onClick={() => {
+              requestAiAccess(async () => {
                 setAiBusy(true);
                 setAiErr("");
                 const result = await planGoal({
@@ -254,11 +253,11 @@ export default function GoalsPage() {
                   return;
                 }
                 setAiPlan(result.data);
-              }}
-            >
-              {aiBusy ? t("ai.thinking") : t("ai.planWithAi")}
-            </Button>
-          ) : null}
+              });
+            }}
+          >
+            {aiBusy ? t("ai.thinking") : t("ai.planWithAi")}
+          </Button>
           {aiErr ? <p className="text-xs text-pink">{aiErr}</p> : null}
           <Button className="w-full" type="submit">
             {t("common.save")}

@@ -29,7 +29,6 @@ import {
 } from "@/components/calendar/EventComposer";
 import { GOAL_COLOR_FALLBACK } from "@/lib/goalColors";
 import { tint } from "@/lib/timeBlock";
-import { useAiEnabled } from "@/lib/ai";
 import { HoursSuggestButton } from "@/components/ai/HoursSuggest";
 import { ScheduleImportButton } from "@/components/ai/ScheduleImport";
 
@@ -54,7 +53,6 @@ function CalendarInner() {
   const updateTask = useApp((s) => s.updateTask);
   const toggleTask = useApp((s) => s.toggleTask);
   const planHours = useApp((s) => s.planHours);
-  const aiOn = useAiEnabled();
   const search = useSearchParams();
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState("");
@@ -308,7 +306,7 @@ function CalendarInner() {
         planHours(hoursTitle.trim(), Number(hoursAmt) || 1, week);
         setHoursTitle("");
       }}
-      aiSlot={aiOn ? <div className="mt-2"><HoursSuggestButton title={hoursTitle} hours={hoursAmt} /></div> : undefined}
+      aiSlot={<div className="mt-2"><HoursSuggestButton title={hoursTitle} hours={hoursAmt} /></div>}
     />
   );
 
@@ -319,7 +317,7 @@ function CalendarInner() {
           {monthLabel(activeCursor)}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
-          {aiOn ? <ScheduleImportButton /> : null}
+          <ScheduleImportButton />
           <button
             className="rounded-chip bg-raised px-3 py-1.5 text-sm lg:hidden"
             onClick={() => setRailOpen((v) => !v)}

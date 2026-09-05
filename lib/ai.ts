@@ -3,7 +3,7 @@
 import { collectBusy, findFreeSlots } from "./plan";
 import { addDays, todayKey, weekdayOf } from "./dates";
 import { timeFromMinutes } from "./timeBlock";
-import { useSession } from "./store";
+import { useApp, useSession } from "./store";
 import type {
   AiResult,
   ChatMessage,
@@ -22,8 +22,46 @@ export function useAiEnabled() {
   return Boolean(useSession()?.aiOptIn);
 }
 
-export function openAiChat() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("tofiby:aichat"));
+let pendingGrant: (() => void) | null = null;
+
+function currentAiOptIn() {
+  const s = useApp.getState();
+  const user = s.users.find((u) => u.id === s.sessionUserId);
+  return Boolean(user?.aiOptIn);
+}
+
+export function requestAiAccess(onGranted: () => void) {
+  if (currentAiOptIn()) {
+    onGranted();
+    return;
+  }
+  pendingGrant = onGranted;
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("tofiby:ai-ask"));
+}
+
+export function grantAiAccess() {
+  useApp.getState().updateSettings({ aiOptIn: true });
+  const fn = pendingGrant;
+  pendingGrant = null;
+  fn?.();
+}
+
+export function denyAiAccess() {
+  pendingGrant = null;
+}
+
+export function openAiChat(threadId?: string) {
+  requestAiAccess(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("tofiby:aichat", { detail: { threadId } }));
+  });
+}
+
+export function openAiHistory() {
+  requestAiAccess(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("tofiby:aichat", { detail: { history: true } }));
+  });
 }
 
 async function post<T>(body: Record<string, unknown>): Promise<AiResult<T>> {

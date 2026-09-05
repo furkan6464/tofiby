@@ -231,3 +231,44 @@ textarea:focus {
   background: #2a2436;
   border-radius: 8px;
 }
+
+.ai-orb {
+  border: 2px solid var(--accent-pink);
+  background: color-mix(in srgb, var(--accent-violet) 18%, #121018);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-mint) 55%, transparent),
+    0 0 16px var(--accent-pink-glow),
+    0 0 28px color-mix(in srgb, var(--accent-violet) 40%, transparent);
+  animation: ai-orb-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ai-orb-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent-mint) 45%, transparent),
+      0 0 14px var(--accent-pink-glow),
+      0 0 24px color-mix(in srgb, var(--accent-violet) 32%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--accent-mint) 80%, transparent),
+      0 0 22px var(--accent-pink),
+      0 0 36px color-mix(in srgb, var(--accent-violet) 55%, transparent);
+  }
+}
+
+.ai-orb-wiggle {
+  display: inline-block;
+  animation: ai-orb-wiggle 2.8s ease-in-out infinite;
+}
+
+@keyframes ai-orb-wiggle {
+  0%,
+  100% {
+    transform: translateY(2px) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(4deg);
+  }
+}

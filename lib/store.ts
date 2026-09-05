@@ -31,6 +31,8 @@ import { t } from "./i18n";
 import { celebrate } from "./confetti";
 import type {
   BusySlot,
+  ChatThread,
+  ChatThreadMessage,
   Creature,
   CreatureGender,
   DailyScore,
@@ -115,6 +117,7 @@ interface AppState {
   sharedQuests: SharedQuest[];
   taskCompanions: TaskCompanion[];
   achievements: UserAchievement[];
+  chatThreads: ChatThread[];
   toasts: Toast[];
   widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick" | "worried" | "yawn";
   pendingHatch: boolean;
@@ -191,6 +194,8 @@ interface AppState {
   inviteCompanion: (taskId: string, friendId: string) => { ok: boolean; error?: string };
   respondCompanion: (id: string, accept: boolean) => void;
   cancelCompanion: (id: string) => void;
+  saveChatThread: (input: { id?: string | null; messages: ChatThreadMessage[] }) => string;
+  deleteChatThread: (id: string) => void;
 }
 
 function makeEgg(ownerId: string, name: string, gender: CreatureGender = "kiz"): Creature {
@@ -318,6 +323,7 @@ export const useApp = create<AppState>()(
       sharedQuests: [],
       taskCompanions: [],
       achievements: [],
+      chatThreads: [],
       toasts: [],
       widgetAnim: "idle",
       pendingHatch: false,
@@ -756,6 +762,7 @@ export const useApp = create<AppState>()(
             (c) => c.fromUser !== user.id && c.toUser !== user.id,
           ),
           achievements: get().achievements.filter((a) => a.userId !== user.id),
+          chatThreads: get().chatThreads.filter((c) => c.userId !== user.id),
           offlineOps: [],
         });
         return { ok: true };
@@ -1536,12 +1543,33 @@ export const useApp = create<AppState>()(
           notices: get().notices.filter((n) => n.href !== `companion:${id}` && n.body !== id),
         });
       },
+      saveChatThread: ({ id, messages }) => {
+        const user = currentUser(get());
+        if (!user || messages.length === 0) return id ?? "";
+        const first = messages.find((m) => m.role === "user")?.text.replace(/\s+/g, " ").trim() ?? "";
+        const title = (first || "Sohbet").slice(0, 48);
+        const threadId = id || uid();
+        const thread: ChatThread = {
+          id: threadId,
+          userId: user.id,
+          title,
+          updatedAt: new Date().toISOString(),
+          messages: messages.slice(-80),
+        };
+        const mine = get().chatThreads.filter((c) => c.userId === user.id && c.id !== threadId);
+        const others = get().chatThreads.filter((c) => c.userId !== user.id);
+        set({ chatThreads: [...others, thread, ...mine].slice(0, others.length + 40) });
+        return threadId;
+      },
+      deleteChatThread: (id) => {
+        set({ chatThreads: get().chatThreads.filter((c) => c.id !== id) });
+      },
     }),
     {
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 7,
+      version: 8,
       migrate: (persisted) => {
         try {
           const p = persisted as {
@@ -1568,6 +1596,7 @@ export const useApp = create<AppState>()(
             sharedQuests: p.sharedQuests ?? [],
             taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
             achievements: p.achievements ?? [],
+            chatThreads: (p.chatThreads as ChatThread[] | undefined) ?? [],
             scores: p.scores ?? [],
             friendships: p.friendships ?? [],
             pairs: p.pairs ?? [],
@@ -1596,6 +1625,7 @@ export const useApp = create<AppState>()(
         sharedQuests: s.sharedQuests,
         taskCompanions: s.taskCompanions,
         achievements: s.achievements,
+        chatThreads: s.chatThreads,
       }),
     },
   ),

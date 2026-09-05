@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { t } from "@/lib/i18n";
-import { parseSchedule } from "@/lib/ai";
+import { parseSchedule, requestAiAccess } from "@/lib/ai";
 import { aiErrorText } from "@/lib/aiCopy";
 import type { ScheduleLesson } from "@/lib/aiTypes";
 import { durationBetween } from "@/lib/timeBlock";
@@ -46,7 +46,12 @@ export function ScheduleImportButton() {
         className="hidden"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
-      <Button tone="ghost" type="button" disabled={busy} onClick={() => input.current?.click()}>
+      <Button
+        tone="ghost"
+        type="button"
+        disabled={busy}
+        onClick={() => requestAiAccess(() => input.current?.click())}
+      >
         {busy ? t("ai.reading") : t("ai.uploadSchedule")}
       </Button>
       {err && !lessons ? <p className="mt-1 text-[11px] text-pink">{err}</p> : null}

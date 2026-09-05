@@ -19,7 +19,9 @@ import { friendName, t } from "@/lib/i18n";
 import { Progress } from "../ui/Progress";
 import { CreatureView } from "./CreatureView";
 import { StageProgress } from "./StageProgress";
-import { openAiChat, useAiEnabled } from "@/lib/ai";
+import { openAiChat, openAiHistory } from "@/lib/ai";
+import { AiChatOrb } from "@/components/ai/AiChatOrb";
+import { History } from "lucide-react";
 import type { SpriteState } from "@/data/creatures/types";
 
 function useCreaturePanel() {
@@ -144,7 +146,6 @@ function useRailWander(enabled: boolean) {
 
 export function CreatureRail() {
   const { user, creature, greet, tap, spriteState, sleepy, todayGp } = useCreaturePanel();
-  const aiOn = useAiEnabled();
   const wanderOn = Boolean(creature) && !sleepy && spriteState !== "sick";
   const { x, flip } = useRailWander(wanderOn);
 
@@ -198,11 +199,24 @@ export function CreatureRail() {
           </div>
         ) : null}
       </div>
-      {aiOn ? (
-        <button type="button" className="mt-4 text-sm text-violet" onClick={openAiChat}>
-          {t("ai.chat")}
+      <div className="mt-5 flex items-end gap-3">
+        <AiChatOrb
+          speciesId={creature.speciesId}
+          stage={creature.stage}
+          hueShift={creature.hueShift}
+          genetics={creature.genetics}
+          onClick={() => openAiChat()}
+        />
+        <button
+          type="button"
+          className="mb-1 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-muted hover:border-pink/50 hover:text-pink"
+          aria-label={t("ai.history")}
+          onClick={openAiHistory}
+        >
+          <History size={16} />
         </button>
-      ) : null}
+      </div>
+      <p className="mt-2 text-[10px] uppercase tracking-wide text-faint">AI</p>
       <Link href="/yaratigim" className="mt-auto text-sm text-violet">
         {t("home.seeGrowth")}
       </Link>
@@ -212,7 +226,6 @@ export function CreatureRail() {
 
 export function CreatureBar() {
   const { user, creature, greet, tap, spriteState } = useCreaturePanel();
-  const aiOn = useAiEnabled();
   if (!user || !creature) return null;
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-white/[0.06] bg-base/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
@@ -237,11 +250,22 @@ export function CreatureBar() {
         </p>
       </Link>
       {greet ? <p className="text-xs text-muted">{t("story.morning")}</p> : null}
-      {aiOn ? (
-        <button type="button" className="text-xs text-violet" onClick={openAiChat}>
-          {t("ai.chat")}
-        </button>
-      ) : null}
+      <AiChatOrb
+        size="sm"
+        speciesId={creature.speciesId}
+        stage={creature.stage}
+        hueShift={creature.hueShift}
+        genetics={creature.genetics}
+        onClick={() => openAiChat()}
+      />
+      <button
+        type="button"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-muted"
+        aria-label={t("ai.history")}
+        onClick={openAiHistory}
+      >
+        <History size={15} />
+      </button>
     </header>
   );
 }

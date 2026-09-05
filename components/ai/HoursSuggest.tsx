@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { t } from "@/lib/i18n";
-import { goalNeedMinutes, suggestStudyHours, weekFreeWindows } from "@/lib/ai";
+import { goalNeedMinutes, requestAiAccess, suggestStudyHours, weekFreeWindows } from "@/lib/ai";
 import { aiErrorText } from "@/lib/aiCopy";
 import type { StudySlot } from "@/lib/aiTypes";
 import { weekdayLabel } from "@/lib/dates";
@@ -55,7 +55,13 @@ export function HoursSuggestButton({
 
   return (
     <>
-      <Button tone="ghost" type="button" className="w-full" disabled={pending || !title.trim()} onClick={() => void run()}>
+      <Button
+        tone="ghost"
+        type="button"
+        className="w-full"
+        disabled={pending || !title.trim()}
+        onClick={() => requestAiAccess(() => void run())}
+      >
         {pending ? t("ai.thinking") : t("ai.suggestHours")}
       </Button>
       {err && !slots ? <p className="text-[11px] text-pink">{err}</p> : null}

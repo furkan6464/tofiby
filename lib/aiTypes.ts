@@ -31,9 +31,19 @@ export interface ChatLink {
   href: string;
 }
 
+export interface ChatCalendarAdd {
+  title: string;
+  date: string | null;
+  weekday: number | null;
+  recurring: boolean;
+  start: string;
+  end: string;
+}
+
 export interface ChatReply {
   reply: string;
   links: ChatLink[];
+  calendarAdds: ChatCalendarAdd[];
 }
 
 export interface ChatMessage {
@@ -51,6 +61,8 @@ export interface CreatureSnapshot {
   todayDcs: number | null;
   todayDone: number;
   todayPlanned: number;
+  today: string;
+  weekday: number;
   goals: { title: string; weeklyFrequency: number | null; dailyMins: number | null }[];
 }
 
