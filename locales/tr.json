@@ -222,6 +222,9 @@
     "pause": "Duraklat",
     "resume": "Devam",
     "plus5": "+5 dk",
+    "plus15": "+15 dk",
+    "reset": "Sıfırla",
+    "continueWork": "Çalışmaya devam et",
     "markDone": "Bitir ve işaretle",
     "leave": "Çık",
     "finished": "Süre doldu"

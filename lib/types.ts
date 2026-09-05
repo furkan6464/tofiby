@@ -165,6 +165,12 @@ export interface Task {
   completedAt: string | null;
 }
 
+export interface FocusRun {
+  leftMs: number;
+  totalMs: number;
+  plannedMs: number;
+}
+
 /** Occupied time independent of app tasks — ready for a future external calendar. */
 export interface BusySlot {
   id: string;

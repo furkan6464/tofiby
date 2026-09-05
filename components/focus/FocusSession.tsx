@@ -6,13 +6,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { celebrate } from "@/lib/confetti";
 import { useApp } from "@/lib/store";
-import type { Task } from "@/lib/types";
+import type { FocusRun, Task } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 
 const PRESETS = [15, 25, 45, 60, 90];
 const R = 128;
 const RING = 2 * Math.PI * R;
 const FOCUS_EVENT = "tofiby:focus";
+const FREE_KEY = "free";
 
 function clock(ms: number) {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -28,24 +29,40 @@ function knownMins(task?: Task | null) {
   return n && n >= 5 ? n : null;
 }
 
+export function focusKey(task?: Task | null) {
+  return task?.id ?? FREE_KEY;
+}
+
+export function isFocusResume(run?: FocusRun) {
+  return Boolean(run && run.leftMs > 1000);
+}
+
 export function openFocus(task?: Task | null) {
-  window.dispatchEvent(new CustomEvent(FOCUS_EVENT, { detail: { task: task ?? null } }));
+  window.dispatchEvent(new CustomEvent(FOCUS_EVENT, { detail: { taskId: task?.id ?? FREE_KEY } }));
 }
 
 export function FocusHost() {
-  const [task, setTask] = useState<Task | null | false>(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const task = useApp((s) => (openId && openId !== FREE_KEY ? s.tasks.find((x) => x.id === openId) : null));
 
   useEffect(() => {
     const onOpen = (e: Event) => {
-      const detail = (e as CustomEvent<{ task?: Task | null }>).detail;
-      setTask(detail?.task ?? null);
+      const detail = (e as CustomEvent<{ taskId?: string | null }>).detail;
+      setOpenId(detail?.taskId ?? FREE_KEY);
     };
     window.addEventListener(FOCUS_EVENT, onOpen);
     return () => window.removeEventListener(FOCUS_EVENT, onOpen);
   }, []);
 
-  if (task === false) return null;
-  return <FocusSession key={task?.id ?? "free"} task={task} onClose={() => setTask(false)} />;
+  if (!openId) return null;
+  if (openId !== FREE_KEY && !task) return null;
+  return (
+    <FocusSession
+      key={openId}
+      task={openId === FREE_KEY ? null : task}
+      onClose={() => setOpenId(null)}
+    />
+  );
 }
 
 export function FocusSession({
@@ -58,27 +75,64 @@ export function FocusSession({
   const update = useApp((s) => s.updateTask);
   const toggle = useApp((s) => s.toggleTask);
   const pushToast = useApp((s) => s.pushToast);
+  const saveRun = useApp((s) => s.saveFocusRun);
+  const clearRun = useApp((s) => s.clearFocusRun);
+  const key = focusKey(task);
+  const saved = useApp.getState().focusRuns?.[key];
+  const resume = isFocusResume(saved);
   const suggested = knownMins(task) ?? 25;
-  const [phase, setPhase] = useState<"setup" | "clock" | "done">(knownMins(task) ? "clock" : "setup");
-  const [mins, setMins] = useState(String(suggested));
-  const [totalMs, setTotalMs] = useState(suggested * 60_000);
-  const [leftMs, setLeftMs] = useState(suggested * 60_000);
+  const startMs = resume ? saved!.leftMs : suggested * 60_000;
+  const startTotal = resume ? saved!.totalMs : suggested * 60_000;
+  const startPlanned = resume ? saved!.plannedMs : suggested * 60_000;
+  const [phase, setPhase] = useState<"setup" | "clock" | "done">(
+    resume || knownMins(task) ? "clock" : "setup",
+  );
+  const [mins, setMins] = useState(String(Math.round(startPlanned / 60_000)));
+  const [totalMs, setTotalMs] = useState(startTotal);
+  const [leftMs, setLeftMs] = useState(startMs);
+  const [plannedMs, setPlannedMs] = useState(startPlanned);
   const [running, setRunning] = useState(false);
   const [chrome, setChrome] = useState(true);
   const [mounted, setMounted] = useState(false);
   const endAt = useRef<number | null>(null);
   const hideChrome = useRef<number | undefined>(undefined);
-  const leftRef = useRef(suggested * 60_000);
+  const leftRef = useRef(startMs);
+  const totalRef = useRef(startTotal);
+  const plannedRef = useRef(startPlanned);
+  const touched = useRef(resume);
+  const skipSave = useRef(false);
   leftRef.current = leftMs;
+  totalRef.current = totalMs;
+  plannedRef.current = plannedMs;
   const title = task?.title ?? t("focus.timer");
+
+  function persist(next?: Partial<FocusRun>) {
+    if (skipSave.current || !touched.current) return;
+    const left = next?.leftMs ?? leftRef.current;
+    if (left <= 1000) {
+      clearRun(key);
+      return;
+    }
+    saveRun(key, {
+      leftMs: left,
+      totalMs: next?.totalMs ?? totalRef.current,
+      plannedMs: next?.plannedMs ?? plannedRef.current,
+    });
+  }
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const onHide = () => persist();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onHide);
     return () => {
+      persist();
       document.body.style.overflow = prev;
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onHide);
     };
   }, []);
 
@@ -91,6 +145,8 @@ export function FocusSession({
         setLeftMs(0);
         setRunning(false);
         setPhase("done");
+        skipSave.current = true;
+        clearRun(key);
         celebrate("streak");
         return;
       }
@@ -99,7 +155,7 @@ export function FocusSession({
     tick();
     const id = window.setInterval(tick, 200);
     return () => window.clearInterval(id);
-  }, [phase, running]);
+  }, [phase, running, key, clearRun]);
 
   useEffect(() => {
     if (phase !== "clock" || !running || !("wakeLock" in navigator)) return;
@@ -123,7 +179,7 @@ export function FocusSession({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") leave(false);
       if (e.code === "Space" && phase === "clock") {
         e.preventDefault();
         toggleRun();
@@ -131,7 +187,7 @@ export function FocusSession({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, phase]);
+  }, [phase]);
 
   const ratio = totalMs > 0 ? leftMs / totalMs : 0;
   const chosen = Math.min(180, Math.max(5, Number(mins) || suggested));
@@ -142,36 +198,59 @@ export function FocusSession({
     const ms = minutes * 60_000;
     setTotalMs(ms);
     setLeftMs(ms);
+    setPlannedMs(ms);
     setRunning(false);
     endAt.current = null;
     setPhase("clock");
     setChrome(true);
+    persist({ leftMs: ms, totalMs: ms, plannedMs: ms });
   }
 
   function toggleRun() {
     setRunning((was) => {
       if (was) {
         endAt.current = null;
+        persist();
         return false;
       }
+      touched.current = true;
       endAt.current = Date.now() + leftRef.current;
       return true;
     });
   }
 
-  function addFive() {
-    setLeftMs((ms) => {
-      const next = ms + 5 * 60_000;
-      if (running) endAt.current = Date.now() + next;
-      return next;
-    });
-    setTotalMs((ms) => ms + 5 * 60_000);
+  function addMinutes(n: number) {
+    touched.current = true;
+    const extra = n * 60_000;
+    const nextLeft = leftRef.current + extra;
+    const nextTotal = totalRef.current + extra;
+    setLeftMs(nextLeft);
+    setTotalMs(nextTotal);
+    if (running) endAt.current = Date.now() + nextLeft;
+    persist({ leftMs: nextLeft, totalMs: nextTotal });
   }
 
-  function finish(mark: boolean) {
+  function reset() {
+    setRunning(false);
+    endAt.current = null;
+    setLeftMs(plannedRef.current);
+    setTotalMs(plannedRef.current);
+    setPhase("clock");
+    setChrome(true);
+    persist({ leftMs: plannedRef.current, totalMs: plannedRef.current });
+  }
+
+  function leave(mark: boolean) {
     if (mark && task && !task.completed) {
       const res = toggle(task.id);
       if (res.streakJustHit) pushToast(t("home.streakToast"));
+      skipSave.current = true;
+      clearRun(key);
+    } else if (phase === "done" || leftRef.current <= 1000) {
+      skipSave.current = true;
+      clearRun(key);
+    } else {
+      persist();
     }
     onClose();
   }
@@ -223,7 +302,7 @@ export function FocusSession({
               onChange={(e) => setMins(e.target.value)}
             />
             <div className="mt-8 flex justify-center gap-3">
-              <Button tone="ghost" type="button" onClick={onClose}>
+              <Button tone="ghost" type="button" onClick={() => leave(false)}>
                 {t("common.cancel")}
               </Button>
               <Button type="button" onClick={() => arm()}>
@@ -281,32 +360,38 @@ export function FocusSession({
               <div className="mt-10 flex flex-col items-center gap-3">
                 <p className="text-sm text-muted">{t("focus.finished")}</p>
                 {task ? (
-                  <Button type="button" onClick={() => finish(true)}>
+                  <Button type="button" onClick={() => leave(true)}>
                     {t("focus.markDone")}
                   </Button>
                 ) : null}
-                <button type="button" className="text-xs text-faint" onClick={() => finish(false)}>
+                <button type="button" className="text-xs text-faint" onClick={() => leave(false)}>
                   {t("focus.leave")}
                 </button>
               </div>
             ) : (
               <div
-                className={`mt-10 flex items-center gap-7 transition-opacity duration-500 ${
+                className={`mt-10 flex max-w-md flex-wrap items-center justify-center gap-x-6 gap-y-3 transition-opacity duration-500 ${
                   waiting || chrome ? "opacity-80" : "pointer-events-none opacity-0"
                 }`}
               >
                 <button type="button" className="text-sm text-pink" onClick={toggleRun}>
                   {running ? t("focus.pause") : t("focus.resume")}
                 </button>
-                <button type="button" className="text-sm text-muted" onClick={addFive}>
+                <button type="button" className="text-sm text-muted" onClick={() => addMinutes(5)}>
                   {t("focus.plus5")}
                 </button>
+                <button type="button" className="text-sm text-muted" onClick={() => addMinutes(15)}>
+                  {t("focus.plus15")}
+                </button>
+                <button type="button" className="text-sm text-muted" onClick={reset}>
+                  {t("focus.reset")}
+                </button>
                 {task ? (
-                  <button type="button" className="text-sm text-muted" onClick={() => finish(true)}>
+                  <button type="button" className="text-sm text-muted" onClick={() => leave(true)}>
                     {t("focus.markDone")}
                   </button>
                 ) : null}
-                <button type="button" className="text-sm text-faint" onClick={() => finish(false)}>
+                <button type="button" className="text-sm text-faint" onClick={() => leave(false)}>
                   {t("focus.leave")}
                 </button>
               </div>

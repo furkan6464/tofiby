@@ -36,6 +36,7 @@ import type {
   Creature,
   CreatureGender,
   DailyScore,
+  FocusRun,
   FrequencyPattern,
   Friendship,
   Goal,
@@ -118,6 +119,7 @@ interface AppState {
   taskCompanions: TaskCompanion[];
   achievements: UserAchievement[];
   chatThreads: ChatThread[];
+  focusRuns: Record<string, FocusRun>;
   toasts: Toast[];
   widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick" | "worried" | "yawn";
   pendingHatch: boolean;
@@ -204,6 +206,8 @@ interface AppState {
   cancelCompanion: (id: string) => void;
   saveChatThread: (input: { id?: string | null; messages: ChatThreadMessage[] }) => string;
   deleteChatThread: (id: string) => void;
+  saveFocusRun: (key: string, run: FocusRun) => void;
+  clearFocusRun: (key: string) => void;
 }
 
 function makeEgg(ownerId: string, name: string, gender: CreatureGender = "kiz"): Creature {
@@ -332,6 +336,7 @@ export const useApp = create<AppState>()(
       taskCompanions: [],
       achievements: [],
       chatThreads: [],
+      focusRuns: {},
       toasts: [],
       widgetAnim: "idle",
       pendingHatch: false,
@@ -1601,6 +1606,14 @@ export const useApp = create<AppState>()(
       deleteChatThread: (id) => {
         set({ chatThreads: (get().chatThreads ?? []).filter((c) => c.id !== id) });
       },
+      saveFocusRun: (key, run) => {
+        set({ focusRuns: { ...(get().focusRuns ?? {}), [key]: run } });
+      },
+      clearFocusRun: (key) => {
+        const next = { ...(get().focusRuns ?? {}) };
+        delete next[key];
+        set({ focusRuns: next });
+      },
     }),
     {
       name: "tofiby-db",
@@ -1634,6 +1647,7 @@ export const useApp = create<AppState>()(
             taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
             achievements: p.achievements ?? [],
             chatThreads: (p.chatThreads as ChatThread[] | undefined) ?? [],
+            focusRuns: (p.focusRuns as Record<string, FocusRun> | undefined) ?? {},
             scores: p.scores ?? [],
             friendships: p.friendships ?? [],
             pairs: p.pairs ?? [],
@@ -1663,6 +1677,7 @@ export const useApp = create<AppState>()(
         taskCompanions: s.taskCompanions,
         achievements: s.achievements,
         chatThreads: s.chatThreads,
+        focusRuns: s.focusRuns,
       }),
     },
   ),

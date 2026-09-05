@@ -7,6 +7,7 @@ import { celebrate } from "@/lib/confetti";
 import { canMutateTaskDate } from "@/lib/dates";
 import { useApp, useSession } from "@/lib/store";
 import type { Task } from "@/lib/types";
+import { isFocusResume } from "@/components/focus/FocusSession";
 import { PostponeMenu } from "./PostponeMenu";
 
 export function TaskRow({
@@ -24,6 +25,7 @@ export function TaskRow({
   const toggle = useApp((s) => s.toggleTask);
   const update = useApp((s) => s.updateTask);
   const pushToast = useApp((s) => s.pushToast);
+  const resume = isFocusResume(useApp((s) => s.focusRuns?.[task.id]));
   const [open, setOpen] = useState(false);
   const locked = user ? !canMutateTaskDate(task.date, user.timezone) : true;
   const postponed = task.status === "postponed";
@@ -89,7 +91,7 @@ export function TaskRow({
               className="mt-2 rounded-full border border-pink/25 bg-pink/10 px-3 py-1 text-[11px] text-pink hover:bg-pink/20"
               onClick={() => onFocus(task)}
             >
-              {t("focus.start")}
+              {resume ? t("focus.continueWork") : t("focus.start")}
             </button>
           ) : null}
           {postpone && !task.completed && user ? (
