@@ -215,6 +215,7 @@
   },
   "focus": {
     "start": "Çalışmaya başla",
+    "timer": "Kronometre",
     "kicker": "Odak",
     "setMins": "Süre seç — saati olmayan işlerde buradan ayarlarsın",
     "startTimer": "Kronometreyi başlat",

@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, Timer } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useApp, useSession } from "@/lib/store";
+import { openFocus } from "@/components/focus/FocusSession";
 
 function IconBtn({
   label,
@@ -109,10 +110,19 @@ export function NoticeBell() {
   );
 }
 
+export function FocusButton() {
+  return (
+    <IconBtn label={t("focus.timer")} onClick={() => openFocus()}>
+      <Timer size={18} strokeWidth={1.75} />
+    </IconBtn>
+  );
+}
+
 export function AppTools({ className = "" }: { className?: string }) {
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       <SearchButton />
+      <FocusButton />
       <NoticeBell />
     </div>
   );

@@ -9,6 +9,7 @@ import { CalendarTopBar } from "../calendar/CalendarTopBar";
 import { AppTools } from "./AppTools";
 import { AiConsentHost } from "../ai/AiConsent";
 import { FriendChatHost } from "../ai/FriendChat";
+import { FocusHost } from "../focus/FocusSession";
 
 const NAV_OPEN_KEY = "tofiby-nav-open";
 
@@ -79,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <FriendChatHost />
       <AiConsentHost />
       <CommandPalette />
+      <FocusHost />
     </>
   );
 }
