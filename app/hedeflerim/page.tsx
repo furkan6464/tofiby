@@ -13,6 +13,10 @@ import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Progress } from "@/components/ui/Progress";
+import { planGoal, useAiEnabled, weekFreeWindows } from "@/lib/ai";
+import { aiErrorText } from "@/lib/aiCopy";
+import type { GoalPlanDraft } from "@/lib/aiTypes";
+import { ConfirmList } from "@/components/ai/ConfirmList";
 
 export default function GoalsPage() {
   const user = useSession();
@@ -31,6 +35,11 @@ export default function GoalsPage() {
   const [color, setColor] = useState<string>(GOAL_COLORS[0]);
   const [frequency, setFrequency] = useState<FrequencyPattern>({ kind: "daily" });
   const [stones, setStones] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState("");
+  const [aiPlan, setAiPlan] = useState<GoalPlanDraft | null>(null);
+  const aiOn = useAiEnabled();
+  const busySlots = useApp((s) => s.busySlots);
 
   if (!user) return null;
   const today = todayKey(user.timezone);
@@ -222,11 +231,76 @@ export default function GoalsPage() {
               />
             ))}
           </div>
+          {aiOn ? (
+            <Button
+              tone="ghost"
+              className="w-full"
+              type="button"
+              disabled={aiBusy || !title.trim()}
+              onClick={async () => {
+                setAiBusy(true);
+                setAiErr("");
+                const result = await planGoal({
+                  title: title.trim(),
+                  note: "",
+                  targetDate: targetDate || null,
+                  weeklyFrequency: weeklyFrequency ? Number(weeklyFrequency) : 5,
+                  dailyDurationMinutes: dailyMins ? Number(dailyMins) : 30,
+                  free: weekFreeWindows(user.id, user.timezone, tasks, busySlots),
+                });
+                setAiBusy(false);
+                if (!result.ok) {
+                  setAiErr(aiErrorText(result.error));
+                  return;
+                }
+                setAiPlan(result.data);
+              }}
+            >
+              {aiBusy ? t("ai.thinking") : t("ai.planWithAi")}
+            </Button>
+          ) : null}
+          {aiErr ? <p className="text-xs text-pink">{aiErr}</p> : null}
           <Button className="w-full" type="submit">
             {t("common.save")}
           </Button>
         </form>
       </Modal>
+      <ConfirmList
+        open={Boolean(aiPlan)}
+        title={t("ai.planWithAi")}
+        hint={t("ai.planPreview")}
+        canConfirm={Boolean(aiPlan)}
+        confirmLabel={t("ai.applyPlan")}
+        onClose={() => setAiPlan(null)}
+        onConfirm={() => {
+          if (!aiPlan) return;
+          setTaskTitle(aiPlan.taskTitle);
+          setWeeklyFrequency(String(aiPlan.weeklyFrequency));
+          setDailyMins(String(aiPlan.dailyDurationMinutes));
+          setFrequency(
+            aiPlan.frequencyKind === "custom"
+              ? { kind: "custom", weekdays: aiPlan.weekdays }
+              : aiPlan.frequencyKind === "times_per_week"
+                ? { kind: "times_per_week", timesPerWeek: aiPlan.weeklyFrequency }
+                : { kind: aiPlan.frequencyKind },
+          );
+          setStones(aiPlan.milestones.map((m) => m.title).join("\n"));
+          setAiPlan(null);
+        }}
+      >
+        {aiPlan ? (
+          <div className="space-y-2 text-sm">
+            <p>
+              {aiPlan.taskTitle} · {aiPlan.weeklyFrequency}× / {aiPlan.dailyDurationMinutes} dk
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-muted">
+              {aiPlan.milestones.map((m) => (
+                <li key={m.title}>{m.title}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </ConfirmList>
     </main>
   );
 }

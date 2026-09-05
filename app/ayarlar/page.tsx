@@ -71,6 +71,19 @@ export default function SettingsPage() {
         </div>
       </Card>
       <Card className="mt-4 space-y-3 p-5">
+        <p className="text-sm text-faint">{t("settings.aiTitle")}</p>
+        <p className="text-xs text-muted">{t("settings.aiHint")}</p>
+        <label className="flex items-center justify-between gap-3 text-sm">
+          <span>{t("settings.aiOptIn")}</span>
+          <input
+            type="checkbox"
+            checked={Boolean(user.aiOptIn)}
+            onChange={(e) => update({ aiOptIn: e.target.checked })}
+          />
+        </label>
+        <p className="text-[11px] text-faint">{user.aiOptIn ? t("settings.aiOn") : t("settings.aiOff")}</p>
+      </Card>
+      <Card className="mt-4 space-y-3 p-5">
         <p className="text-sm text-faint">{t("settings.notify")}</p>
         <label className="flex items-center justify-between text-sm">
           <span>{t("settings.notifyPoke")}</span>

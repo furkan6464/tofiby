@@ -6,6 +6,7 @@ import { DesktopNav, MobileTabs } from "./Nav";
 import { CreatureBar, CreatureRail } from "../creature/CreatureWidget";
 import { CommandPalette } from "../search/CommandPalette";
 import { CalendarTopBar } from "../calendar/CalendarTopBar";
+import { FriendChatHost } from "../ai/FriendChat";
 
 const NAV_OPEN_KEY = "tofiby-nav-open";
 
@@ -51,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="pb-[calc(4.75rem+env(safe-area-inset-bottom))]">{children}</div>
         <MobileTabs />
       </div>
+      <FriendChatHost />
       <CommandPalette />
     </>
   );

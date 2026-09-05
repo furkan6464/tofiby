@@ -10,10 +10,12 @@ import {
   MessageCircle,
   Search,
   Settings,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { initials } from "@/lib/timeBlock";
+import { openAiChat, useAiEnabled } from "@/lib/ai";
 import { useApp, useSession } from "@/lib/store";
 
 const ICONS = [
@@ -32,6 +34,7 @@ export function CalendarTopBar() {
   const notices = useApp((s) => s.notices);
   const markRead = useApp((s) => s.markNoticesRead);
   const unread = notices.filter((n) => n.userId === user?.id && !n.read).length;
+  const aiOn = useAiEnabled();
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-base px-6 lg:h-[68px] lg:px-8">
@@ -67,6 +70,16 @@ export function CalendarTopBar() {
       </nav>
 
       <div className="flex items-center gap-3">
+        {aiOn ? (
+          <button
+            type="button"
+            aria-label={t("ai.chat")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-white/5 hover:text-ink"
+            onClick={openAiChat}
+          >
+            <Sparkles size={18} strokeWidth={1.75} />
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label={t("common.search")}

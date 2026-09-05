@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { t } from "@/lib/i18n";
@@ -29,6 +29,7 @@ export function CalendarRail({
   onHoursTitle,
   onHoursAmt,
   onPlan,
+  aiSlot,
 }: {
   monthCursor: string;
   today: string;
@@ -49,6 +50,7 @@ export function CalendarRail({
   onHoursTitle: (v: string) => void;
   onHoursAmt: (v: string) => void;
   onPlan: () => void;
+  aiSlot?: ReactNode;
 }) {
   const [calsOpen, setCalsOpen] = useState(true);
   const totalMin = breakdown.reduce((s, b) => s + b.minutes, 0);
@@ -268,6 +270,7 @@ export function CalendarRail({
             </Button>
           </div>
         </form>
+        {aiSlot}
       </section>
     </aside>
   );

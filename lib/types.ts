@@ -64,6 +64,16 @@ export interface UserProfile {
   yearWrapSeen: number | null;
   weeklyReviewSeen: string | null;
   softDayCaps: Record<string, number>;
+  /** Opt-in: schedule/goals/chat may be sent to the AI providers. Default off. */
+  aiOptIn: boolean;
+}
+
+export interface RecurringSession {
+  title: string;
+  weekday: number;
+  time: string;
+  estimatedDurationMinutes: number;
+  goalId?: string | null;
 }
 
 export interface Creature {

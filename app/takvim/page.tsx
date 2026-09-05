@@ -29,6 +29,9 @@ import {
 } from "@/components/calendar/EventComposer";
 import { GOAL_COLOR_FALLBACK } from "@/lib/goalColors";
 import { tint } from "@/lib/timeBlock";
+import { useAiEnabled } from "@/lib/ai";
+import { HoursSuggestButton } from "@/components/ai/HoursSuggest";
+import { ScheduleImportButton } from "@/components/ai/ScheduleImport";
 
 type View = "month" | "week" | "day" | "list";
 
@@ -51,6 +54,7 @@ function CalendarInner() {
   const updateTask = useApp((s) => s.updateTask);
   const toggleTask = useApp((s) => s.toggleTask);
   const planHours = useApp((s) => s.planHours);
+  const aiOn = useAiEnabled();
   const search = useSearchParams();
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState("");
@@ -94,9 +98,10 @@ function CalendarInner() {
     const qDate = search.get("d");
     const qView = search.get("view");
     if (qDate) {
+      const wk = weekKeys(qDate);
       setCursor(qDate);
-      setRangeStart(qDate);
-      setRangeEnd(qDate);
+      setRangeStart(wk[0]);
+      setRangeEnd(wk[6]);
     }
     if (qView === "week" || qView === "day" || qView === "month" || qView === "list") {
       setView(qView);
@@ -106,9 +111,10 @@ function CalendarInner() {
   useEffect(() => {
     if (!user || cursor) return;
     const d = todayKey(user.timezone);
+    const wk = weekKeys(d);
     setCursor(d);
-    setRangeStart(d);
-    setRangeEnd(d);
+    setRangeStart(wk[0]);
+    setRangeEnd(wk[6]);
   }, [user, cursor]);
 
   useEffect(() => {
@@ -147,7 +153,10 @@ function CalendarInner() {
   const rangeLo = rangeStart && rangeEnd ? (rangeStart <= rangeEnd ? rangeStart : rangeEnd) : activeCursor;
   const rangeHi = rangeStart && rangeEnd ? (rangeStart <= rangeEnd ? rangeEnd : rangeStart) : activeCursor;
   const rangeSpan = diffDays(rangeLo, rangeHi) + 1;
-  const visibleDays = dateKeysBetween(rangeLo, rangeHi, 14);
+  const visibleDays =
+    view === "week" && rangeSpan <= 1
+      ? weekKeys(activeCursor)
+      : dateKeysBetween(rangeLo, rangeHi, 14);
   const week = visibleDays;
   const hidden = useMemo(() => new Set(hiddenCals), [hiddenCals]);
   const mine = useMemo(
@@ -299,6 +308,7 @@ function CalendarInner() {
         planHours(hoursTitle.trim(), Number(hoursAmt) || 1, week);
         setHoursTitle("");
       }}
+      aiSlot={aiOn ? <div className="mt-2"><HoursSuggestButton title={hoursTitle} hours={hoursAmt} /></div> : undefined}
     />
   );
 
@@ -309,6 +319,7 @@ function CalendarInner() {
           {monthLabel(activeCursor)}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
+          {aiOn ? <ScheduleImportButton /> : null}
           <button
             className="rounded-chip bg-raised px-3 py-1.5 text-sm lg:hidden"
             onClick={() => setRailOpen((v) => !v)}

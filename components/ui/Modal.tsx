@@ -9,17 +9,21 @@ export function Modal({
   onClose,
   title,
   children,
+  wide = false,
+  layer = "z-[70]",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  wide?: boolean;
+  layer?: string;
 }) {
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center p-4 sm:items-center"
+          className={`fixed inset-0 ${layer} flex items-end justify-center p-4 sm:items-center`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -33,7 +37,9 @@ export function Modal({
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 16, opacity: 0 }}
-            className="relative w-full max-w-md rounded-nest border border-white/[0.06] bg-surface p-5"
+            className={`relative w-full rounded-nest border border-white/[0.06] bg-surface p-5 ${
+              wide ? "max-w-lg" : "max-w-md"
+            }`}
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-display text-xl">{title}</h3>

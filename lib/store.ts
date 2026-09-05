@@ -39,6 +39,7 @@ import type {
   Goal,
   Milestone,
   Notice,
+  RecurringSession,
   OfflineOp,
   OffspringLog,
   Pair,
@@ -156,6 +157,7 @@ interface AppState {
     time?: string | null;
     estimatedDurationMinutes?: number | null;
   }) => void;
+  addRecurringSessions: (sessions: RecurringSession[]) => { added: number; firstDate: string | null };
   updateTask: (id: string, patch: Partial<Task>) => void;
   moveTask: (id: string, date: string, time?: string | null) => void;
   postponeTask: (id: string, toDate: string) => void;
@@ -588,6 +590,38 @@ export const useApp = create<AppState>()(
           tasks: [...get().tasks, created],
           offlineOps: nextOffline(get().offlineOps, "add", { id: created.id, date, title }),
         });
+      },
+      addRecurringSessions: (sessions) => {
+        const user = currentUser(get());
+        if (!user || sessions.length === 0) return { added: 0, firstDate: null };
+        const today = todayKey(user.timezone);
+        const horizon = addDays(today, GAME_CONFIG.TASK_HORIZON_DAYS);
+        const extra: Task[] = [];
+        for (const session of sessions) {
+          const weekday = ((Number(session.weekday) % 7) + 7) % 7;
+          const time = String(session.time ?? "").trim();
+          const title = String(session.title ?? "").trim();
+          if (!Number.isFinite(weekday) || !time || !title) continue;
+          const dates = enumerateDates(today, horizon).filter((date) => weekdayOf(date) === weekday);
+          for (const date of dates) {
+            extra.push(
+              hydrateTask({
+                id: uid(),
+                userId: user.id,
+                goalId: session.goalId ?? null,
+                date,
+                time,
+                title,
+                tag: "ders",
+                estimatedDurationMinutes: session.estimatedDurationMinutes || 45,
+                repeatPattern: { kind: "custom", weekdays: [weekday] },
+              }),
+            );
+          }
+        }
+        if (extra.length === 0) return { added: 0, firstDate: null };
+        set({ tasks: [...get().tasks, ...extra] });
+        return { added: extra.length, firstDate: extra[0]?.date ?? null };
       },
       updateTask: (id, patch) => {
         set({
@@ -1507,7 +1541,7 @@ export const useApp = create<AppState>()(
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 6,
+      version: 7,
       migrate: (persisted) => {
         try {
           const p = persisted as {
@@ -1592,6 +1626,7 @@ function makeAccount(input: {
     yearWrapSeen: null,
     weeklyReviewSeen: null,
     softDayCaps: {},
+    aiOptIn: false,
     passwordHash: hashPass(input.password),
   };
 }
@@ -1637,6 +1672,7 @@ function normalizeUser(u: Account): Account {
     yearWrapSeen: u.yearWrapSeen ?? null,
     weeklyReviewSeen: u.weeklyReviewSeen ?? null,
     softDayCaps: u.softDayCaps ?? {},
+    aiOptIn: u.aiOptIn ?? false,
   };
 }
 
