@@ -380,9 +380,6 @@ export function FocusSession({
                 <button type="button" className="text-sm text-muted" onClick={() => addMinutes(5)}>
                   {t("focus.plus5")}
                 </button>
-                <button type="button" className="text-sm text-muted" onClick={() => addMinutes(15)}>
-                  {t("focus.plus15")}
-                </button>
                 <button type="button" className="text-sm text-muted" onClick={reset}>
                   {t("focus.reset")}
                 </button>
