@@ -13,10 +13,12 @@ export function TaskRow({
   task,
   showTime = false,
   postpone = false,
+  onFocus,
 }: {
   task: Task;
   showTime?: boolean;
   postpone?: boolean;
+  onFocus?: (task: Task) => void;
 }) {
   const user = useSession();
   const toggle = useApp((s) => s.toggleTask);
@@ -80,6 +82,15 @@ export function TaskRow({
               value={task.note}
               onChange={(e) => update(task.id, { note: e.target.value })}
             />
+          ) : null}
+          {onFocus && !task.completed && !postponed ? (
+            <button
+              type="button"
+              className="mt-2 rounded-full border border-pink/25 bg-pink/10 px-3 py-1 text-[11px] text-pink hover:bg-pink/20"
+              onClick={() => onFocus(task)}
+            >
+              {t("focus.start")}
+            </button>
           ) : null}
           {postpone && !task.completed && user ? (
             <PostponeMenu taskId={task.id} today={task.date} />

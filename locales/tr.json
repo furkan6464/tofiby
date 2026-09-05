@@ -213,6 +213,18 @@
     "heatTitle": "Son bir yıl",
     "heatTitleJourney": "Başlangıçtan bugüne"
   },
+  "focus": {
+    "start": "Çalışmaya başla",
+    "kicker": "Odak",
+    "setMins": "Süre seç — saati olmayan işlerde buradan ayarlarsın",
+    "startTimer": "Kronometreyi başlat",
+    "pause": "Duraklat",
+    "resume": "Devam",
+    "plus5": "+5 dk",
+    "markDone": "Bitir ve işaretle",
+    "leave": "Çık",
+    "finished": "Süre doldu"
+  },
   "heat": {
     "tooltip": "{date} · {gp} GP · %{pct}"
   },

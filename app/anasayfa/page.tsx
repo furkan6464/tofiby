@@ -16,7 +16,9 @@ import {
 import { goalWorkProgress, overloadedWeekdays, remainingToStreak, weeklyReview } from "@/lib/plan";
 import { pickStoryKind } from "@/lib/bond";
 import { TaskRow } from "@/components/tasks/TaskRow";
+import { FocusSession } from "@/components/focus/FocusSession";
 import { Card } from "@/components/ui/Card";
+import type { Task } from "@/lib/types";
 import { Progress } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
 
@@ -30,6 +32,7 @@ export default function HomePage() {
   const addTask = useApp((s) => s.addTask);
   const update = useApp((s) => s.updateSettings);
   const [quick, setQuick] = useState("");
+  const [focus, setFocus] = useState<Task | null>(null);
 
   const goals = useMemo(
     () => allGoals.filter((g) => g.userId === user?.id && g.status === "active"),
@@ -185,7 +188,7 @@ export default function HomePage() {
             <p className="text-sm text-muted">{t("home.emptyToday")}</p>
           ) : (
             timed.map((task) => (
-              <TaskRow key={task.id} task={task} showTime postpone />
+              <TaskRow key={task.id} task={task} showTime postpone onFocus={setFocus} />
             ))
           )}
         </div>
@@ -265,6 +268,7 @@ export default function HomePage() {
           </Link>
         </Card>
       </section>
+      {focus ? <FocusSession task={focus} onClose={() => setFocus(null)} /> : null}
     </main>
   );
 }

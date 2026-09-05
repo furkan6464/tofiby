@@ -272,3 +272,56 @@ textarea:focus {
     transform: translateY(-3px) rotate(4deg);
   }
 }
+
+.focus-veil {
+  background:
+    radial-gradient(ellipse at 50% 44%, rgba(255, 62, 158, 0.16), transparent 38%),
+    radial-gradient(ellipse at 50% 78%, rgba(139, 92, 246, 0.12), transparent 44%),
+    #05040a;
+}
+
+.focus-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.055);
+  stroke-width: 7;
+}
+
+.focus-progress {
+  fill: none;
+  stroke: #ff3e9e;
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 14px rgba(255, 62, 158, 0.62));
+  transition: stroke-dashoffset 180ms linear;
+}
+
+.focus-progress-paused {
+  stroke: #8b5cf6;
+  filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.45));
+}
+
+.focus-tick {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1.2;
+}
+
+.focus-tick-strong {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.6;
+}
+
+.focus-ring {
+  animation: focus-breathe 5.6s ease-in-out infinite;
+}
+
+@keyframes focus-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 22px rgba(255, 62, 158, 0.2));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 42px rgba(139, 92, 246, 0.32));
+    transform: scale(1.012);
+  }
+}
