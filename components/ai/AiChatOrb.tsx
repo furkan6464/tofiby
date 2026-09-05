@@ -22,34 +22,32 @@ export function AiChatOrb({
 }) {
   const md = size === "md";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={t("ai.orb")}
-      className={`ai-orb pressable relative shrink-0 overflow-hidden rounded-full ${
-        md ? "h-[5.5rem] w-[5.5rem]" : "h-11 w-11"
-      }`}
-    >
-      <span className="absolute inset-[3px] rounded-full bg-surface" />
-      <span className="relative z-[1] flex h-full w-full items-center justify-center">
-        <span className="ai-orb-wiggle">
-          <CreatureView
-            speciesId={speciesId}
-            stage={stage}
-            hueShift={hueShift}
-            genetics={genetics}
-            pixelSize={md ? 2 : 1}
-            state="happy"
-          />
-        </span>
-      </span>
-      <span
-        className={`absolute z-[2] rounded-full bg-pink font-display leading-none text-base ${
-          md ? "bottom-1 right-1 px-1.5 py-0.5 text-[9px]" : "bottom-0 right-0 px-1 text-[7px]"
+    <span className={`flex items-center gap-1 ${md ? "flex-col" : ""}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={t("ai.orb")}
+        className={`ai-orb pressable relative shrink-0 overflow-hidden rounded-full ${
+          md ? "h-[4.25rem] w-[4.25rem]" : "h-10 w-10"
         }`}
       >
+        <span className="absolute inset-[3px] rounded-full bg-surface" />
+        <span className="relative z-[1] flex h-full w-full items-center justify-center">
+          <span className="ai-orb-wiggle">
+            <CreatureView
+              speciesId={speciesId}
+              stage={stage}
+              hueShift={hueShift}
+              genetics={genetics}
+              pixelSize={md ? 2 : 1}
+              state="happy"
+            />
+          </span>
+        </span>
+      </button>
+      <span className={`font-display leading-none text-pink ${md ? "text-[10px]" : "text-[8px]"}`}>
         AI
       </span>
-    </button>
+    </span>
   );
 }

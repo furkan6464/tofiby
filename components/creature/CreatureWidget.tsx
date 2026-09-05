@@ -154,7 +154,7 @@ export function CreatureRail() {
   const progress = liveProgress(creature, todayGp);
   const union = liveUnion(creature, today);
   return (
-    <aside className="flex h-dvh w-[16.5rem] shrink-0 flex-col border-l border-white/[0.06] bg-base px-5 py-6">
+    <aside className="relative flex h-dvh w-[16.5rem] shrink-0 flex-col overflow-visible border-l border-white/[0.06] bg-base px-5 py-6">
       <p className="text-[10px] uppercase tracking-wide text-faint">{t("nav.creatureCol")}</p>
       <div className="relative mt-4 h-[8.5rem] w-full overflow-hidden">
         <button
@@ -199,27 +199,28 @@ export function CreatureRail() {
           </div>
         ) : null}
       </div>
-      <div className="mt-5 flex items-end gap-3">
-        <AiChatOrb
-          speciesId={creature.speciesId}
-          stage={creature.stage}
-          hueShift={creature.hueShift}
-          genetics={creature.genetics}
-          onClick={() => openAiChat()}
-        />
+      <div className="mt-auto flex items-end gap-2 pt-4">
+        <div className="relative z-20 -ml-9 shrink-0">
+          <AiChatOrb
+            speciesId={creature.speciesId}
+            stage={creature.stage}
+            hueShift={creature.hueShift}
+            genetics={creature.genetics}
+            onClick={() => openAiChat()}
+          />
+        </div>
         <button
           type="button"
-          className="mb-1 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-muted hover:border-pink/50 hover:text-pink"
+          className="mb-5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-muted hover:border-pink/50 hover:text-pink"
           aria-label={t("ai.history")}
           onClick={openAiHistory}
         >
-          <History size={16} />
+          <History size={15} />
         </button>
+        <Link href="/yaratigim" className="mb-5 ml-auto text-sm text-violet">
+          {t("home.seeGrowth")}
+        </Link>
       </div>
-      <p className="mt-2 text-[10px] uppercase tracking-wide text-faint">AI</p>
-      <Link href="/yaratigim" className="mt-auto text-sm text-violet">
-        {t("home.seeGrowth")}
-      </Link>
     </aside>
   );
 }

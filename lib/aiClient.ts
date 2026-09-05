@@ -526,17 +526,19 @@ export async function chat(
     gameRulesForAi(),
     routeMapForAi(),
     "Büyüme tavsiyesinde yalnızca yukarıdaki gerçek formülleri ve kullanıcının güncel sayılarını kullan.",
-    "Ders programı fotoğrafı için ataşla dosya eklemelerini söyle. Programı görüntüden uydurma.",
-    "Takvime görev EKLEME. Sen yazamazsın. Kullanıcı saat/gün verirse calendarAdds doldur.",
-    "ASLA 'ekledim', 'yazdım', 'koydum' deme. Reply'de 'onaylarsan eklerim' de. Onay kutusu uygulamada çıkar.",
-    "calendarAdds: title, start ve end HH:MM. Tek seferlik: recurring=false, date=YYYY-MM-DD (bugün snapshot.today). Yarın: bir gün sonrası. Her hafta: recurring=true ve weekday 0=Pazar … 6=Cumartesi.",
-    "Saat yoksa sormadan uydurma. Kullanıcının güncel durumu:",
+    "Takvim belleği snapshot.week'tedir. SADECE onu kullan. Okul/ders programı uydurma. Fotoğraf isteme — kullanıcı ataşla dosya göndermedikçe.",
+    "calendarEmpty true ise bu kişi okula gitmiyor olabilir; program sorma. preferredWindow (morning/noon/evening/night) ve free boşluklardan saat seç.",
+    "Çalışma/görev koyarken busy ile çakışan saati önerme. Çakışırsa uyar: hangi gün, saat, mevcut başlık. En yakın free aralığı öner ve onu calendarAdds'e yaz.",
+    "Takvime görev EKLEME. Sen yazamazsın. Planı calendarAdds'e koy, reply'de 'onaylarsan eklerim' de. ASLA ekledim/yazdım/koydum deme.",
+    "calendarAdds: title, start, end HH:MM. Tek sefer: recurring=false, date=YYYY-MM-DD. Her gün: her weekday için ayrı satır (0=Pazar … 6=Cumartesi), restDay varsa o günü atla. Her hafta aynı gün: recurring=true + weekday.",
+    "Kullanıcının güncel durumu:",
     JSON.stringify(snapshot),
   ].join("\n\n");
-  const recent = messages.slice(-12);
+  const recent = messages.slice(-16);
   return completeJson({
     system,
     messages: recent.length ? recent : [{ role: "user", text: "Merhaba" }],
+    // week snapshot is the memory — keep a bit more chat so follow-ups stay on the plan
     schema: CHAT_SCHEMA,
     schemaHint:
       '{ "reply": "…", "links": [{ "label": "Takvime git", "href": "/takvim" }], "calendarAdds": [{ "title": "İngilizce", "date": "2026-09-05", "weekday": null, "recurring": false, "start": "19:00", "end": "20:00" }] }',

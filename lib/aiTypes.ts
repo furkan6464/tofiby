@@ -51,6 +51,19 @@ export interface ChatMessage {
   text: string;
 }
 
+export interface ChatBusyItem {
+  title: string;
+  start: string;
+  end: string;
+}
+
+export interface ChatDay {
+  date: string;
+  wd: number;
+  busy: ChatBusyItem[];
+  free: { start: string; end: string }[];
+}
+
 export interface CreatureSnapshot {
   name: string;
   stage: string;
@@ -63,6 +76,10 @@ export interface CreatureSnapshot {
   todayPlanned: number;
   today: string;
   weekday: number;
+  preferredWindow: string | null;
+  restDay: number | null;
+  calendarEmpty: boolean;
+  week: ChatDay[];
   goals: { title: string; weeklyFrequency: number | null; dailyMins: number | null }[];
 }
 

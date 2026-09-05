@@ -5,10 +5,11 @@ import Link from "next/link";
 import { History, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { friendName, t } from "@/lib/i18n";
 import { chat, parseSchedule } from "@/lib/ai";
-import { calendarAddMinutes, guessCalendarAdds } from "@/lib/aiCalendar";
+import { calendarAddMinutes } from "@/lib/aiCalendar";
+import { buildChatSnapshot, calendarConflicts, planFromAccount } from "@/lib/aiContext";
 import { aiErrorText } from "@/lib/aiCopy";
 import type { ChatCalendarAdd, ChatMessage, ChatReply, ScheduleLesson } from "@/lib/aiTypes";
-import { todayKey, weekdayOf } from "@/lib/dates";
+import { todayKey } from "@/lib/dates";
 import { durationBetween, endTime } from "@/lib/timeBlock";
 import { liveProgress, useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
@@ -63,7 +64,9 @@ function FriendChat({
   const saveChatThread = useApp((s) => s.saveChatThread);
   const deleteChatThread = useApp((s) => s.deleteChatThread);
   const pushToast = useApp((s) => s.pushToast);
-  const { tasks, score } = useTodayBundle();
+  const { tasks: todayTasks, score } = useTodayBundle();
+  const allTasks = useApp((s) => s.tasks);
+  const busySlots = useApp((s) => s.busySlots);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -131,7 +134,26 @@ function FriendChat({
   const today = todayKey(user.timezone);
   const todayGp = score && !score.finalized ? score.gpEarned : 0;
   const growth = liveProgress(creature, todayGp);
-  const active = tasks.filter((x) => x.status !== "postponed");
+  const active = todayTasks.filter((x) => x.status !== "postponed");
+  const snapshot = buildChatSnapshot({
+    name: creature.name,
+    stage: creature.stage,
+    streak: creature.currentStreak,
+    longest: creature.longestStreak,
+    totalGp: Number((creature.totalGp + todayGp).toFixed(1)),
+    health: creature.health,
+    todayDcs: score?.dcs ?? null,
+    todayDone: active.filter((x) => x.completed || x.status === "done").length,
+    todayPlanned: active.length,
+    timezone: user.timezone,
+    userId: user.id,
+    preferredWindow: user.preferredWindow,
+    restDay: user.restDayOfWeek,
+    tasks: allTasks,
+    busy: busySlots,
+    goals,
+  });
+  const clashes = calendarAdds?.length ? calendarConflicts(calendarAdds, snapshot.week) : [];
   const mine = threads
     .filter((x) => x.userId === user.id)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -188,33 +210,20 @@ function FriendChat({
     ];
     setMsgs((cur) => [...cur, { role: "user", text: next }]);
     setBusy(true);
-    const result = await chat(history, {
-      name: creature.name,
-      stage: creature.stage,
-      streak: creature.currentStreak,
-      longest: creature.longestStreak,
-      totalGp: Number((creature.totalGp + todayGp).toFixed(1)),
-      health: creature.health,
-      todayDcs: score?.dcs ?? null,
-      todayDone: active.filter((x) => x.completed || x.status === "done").length,
-      todayPlanned: active.length,
-      today,
-      weekday: weekdayOf(today),
-      goals: goals
-        .filter((g) => g.userId === user.id && g.status === "active")
-        .map((g) => ({
-          title: g.title,
-          weeklyFrequency: g.weeklyFrequency,
-          dailyMins: g.dailyDurationMinutes,
-        })),
-    });
+    const result = await chat(history, snapshot);
     setBusy(false);
     if (!result.ok) {
       setErr(aiErrorText(result.error));
       return;
     }
-    const adds =
-      result.data.calendarAdds.length > 0 ? result.data.calendarAdds : guessCalendarAdds(next, today);
+    const specifiedTime = /\d{1,2}[.:]\d{2}/.test(next);
+    const wantsBest = /uygun saat|en uygun|hangisi ise/i.test(next);
+    let adds =
+      result.data.calendarAdds.length > 0 ? result.data.calendarAdds : planFromAccount(next, snapshot);
+    if (adds.length && (!specifiedTime || wantsBest) && calendarConflicts(adds, snapshot.week).length) {
+      const shifted = planFromAccount(next, snapshot);
+      if (shifted.length) adds = shifted;
+    }
     const claimed = /ekledim|yazdım|yazdim|koydum|eklendi/i.test(result.data.reply);
     const reply = claimed && adds.length ? t("ai.calendarAsk") : result.data.reply;
     if (adds.length) setCalendarAdds(adds);
@@ -421,6 +430,15 @@ function FriendChat({
                     <li key={`${row.title}-${i}`}>{addLabel(row)}</li>
                   ))}
                 </ul>
+                {clashes.length ? (
+                  <ul className="mt-2 space-y-1 text-xs text-pink">
+                    {clashes.map((c, i) => (
+                      <li key={`${c.when}-${i}`}>
+                        {t("ai.conflict", { when: c.when, title: c.title })}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <Button className="mt-3 w-full" type="button" disabled={busy} onClick={confirmCalendar}>
                   {t("ai.confirm")}
                 </Button>

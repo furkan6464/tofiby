@@ -2,7 +2,7 @@ import { addDays, weekdayOf } from "./dates";
 import { durationBetween } from "./timeBlock";
 import type { ChatCalendarAdd } from "./aiTypes";
 
-const ADD_HINT = /ekle|koy|yaz|planla|hatirlat|hatırlat|takvim/i;
+const ADD_HINT = /ekle|koy|yaz|planla|hatirlat|hatırlat|takvim|ayarlar|uygun saat/i;
 const TIME_PAIR = /(\d{1,2})[.:](\d{2})/g;
 
 function padTime(h: number, m: number): string | null {
@@ -19,10 +19,14 @@ function timesIn(text: string): string[] {
   return out;
 }
 
-function titleFrom(text: string): string {
+export function titleFromChat(text: string): string {
   const cleaned = text
     .replace(TIME_PAIR, " ")
-    .replace(/\b(takvime|takvim|lutfen|lütfen|benim|icin|için|ekle|koy|yaz|planla)\b/gi, " ")
+    .replace(
+      /\b(takvime|takvim|lutfen|lütfen|benim|icin|için|ekle|koy|yaz|planla|ayarlar|ayarlar mısın|misin|mısın|her gün|her gun|aralığa kadar|araliga kadar|en uygun saat|hangisi ise|ona göre)\b/gi,
+      " ",
+    )
+    .replace(/çalışacağım/gi, "çalışma")
     .replace(/çalışmam[ıi]/gi, "çalışma")
     .replace(/\s+/g, " ")
     .trim()
@@ -64,7 +68,7 @@ export function guessCalendarAdds(text: string, today: string): ChatCalendarAdd[
   const date = recurring ? null : tomorrow ? addDays(today, 1) : today;
   return [
     {
-      title: titleFrom(text),
+      title: titleFromChat(text),
       date,
       weekday: recurring ? (weekday ?? weekdayOf(today)) : null,
       recurring,
