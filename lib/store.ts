@@ -182,6 +182,14 @@ interface AppState {
   poke: (toUser: string) => { ok: boolean; error?: string };
   bond: (friendId: string) => { ok: boolean; error?: string };
   markNoticesRead: () => void;
+  markNoticeRead: (id: string) => void;
+  pushNotice: (input: {
+    id: string;
+    kind: Notice["kind"];
+    title: string;
+    body: string;
+    href?: string;
+  }) => boolean;
   pushToast: (text: string) => void;
   dismissToast: (id: string) => void;
   setWidgetAnim: (a: AppState["widgetAnim"]) => void;
@@ -455,7 +463,9 @@ export const useApp = create<AppState>()(
           users: mergeCloudProfiles(get().users, pulled.profiles),
           friendships: pulled.friendships,
           notices: [
-            ...get().notices.filter((n) => n.userId !== user.id),
+            ...get().notices.filter(
+              (n) => n.userId !== user.id || n.kind === "remind" || n.kind === "smart",
+            ),
             ...pulled.notices,
           ],
           pokes: pulled.pokes,
@@ -1373,6 +1383,32 @@ export const useApp = create<AppState>()(
           ),
         });
         void cloudMarkNoticesRead(user.id);
+      },
+      markNoticeRead: (id) => {
+        set({
+          notices: get().notices.map((n) => (n.id === id ? { ...n, read: true } : n)),
+        });
+      },
+      pushNotice: (input) => {
+        const user = currentUser(get());
+        if (!user) return false;
+        if (get().notices.some((n) => n.id === input.id)) return false;
+        set({
+          notices: [
+            ...get().notices,
+            {
+              id: input.id,
+              userId: user.id,
+              kind: input.kind,
+              title: input.title,
+              body: input.body,
+              href: input.href,
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+        return true;
       },
       pushToast: (text) => {
         const id = uid();

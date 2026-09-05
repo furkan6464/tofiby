@@ -6,6 +6,7 @@ import { DesktopNav, MobileTabs } from "./Nav";
 import { AiRailDock, CreatureBar, CreatureRail } from "../creature/CreatureWidget";
 import { CommandPalette } from "../search/CommandPalette";
 import { CalendarTopBar } from "../calendar/CalendarTopBar";
+import { AppTools } from "./AppTools";
 import { AiConsentHost } from "../ai/AiConsent";
 import { FriendChatHost } from "../ai/FriendChat";
 
@@ -50,11 +51,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         )}
         <div
-          className={`min-h-0 min-w-0 flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0 ${
-            calendar ? "overflow-hidden" : "overflow-y-auto"
+          className={`flex min-h-0 min-w-0 flex-1 flex-col ${
+            calendar ? "overflow-hidden" : ""
           } ${!calendar && !navOpen ? "[&_main]:!max-w-none" : ""}`}
         >
-          {children}
+          {calendar ? null : (
+            <div className="hidden h-14 shrink-0 items-center justify-end border-b border-white/[0.06] bg-base px-5 lg:flex">
+              <AppTools />
+            </div>
+          )}
+          <div
+            className={`min-h-0 flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0 ${
+              calendar ? "overflow-hidden" : "overflow-y-auto"
+            }`}
+          >
+            {children}
+          </div>
         </div>
         {calendar ? null : (
           <div className="hidden h-full lg:flex">

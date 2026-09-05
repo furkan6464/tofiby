@@ -1,12 +1,12 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { todayKey } from "@/lib/dates";
-import { reminderPayloads } from "@/lib/reminders";
-import { t } from "@/lib/i18n";
+import { collectInboxNotices } from "@/lib/smartNotices";
+import { friendName } from "@/lib/i18n";
 import { ToastStack } from "../ui/ToastStack";
 import { HatchCeremony } from "../creature/HatchCeremony";
 import { TogetherCeremony } from "../creature/TogetherCeremony";
@@ -104,43 +104,43 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 function ReminderWatcher() {
   const user = useSession();
-  const { tasks, date } = useTodayBundle();
-  const seen = useRef(new Set<string>());
+  const creature = useActiveCreature();
+  const { date } = useTodayBundle();
+  const tasks = useApp((s) => s.tasks);
+  const busy = useApp((s) => s.busySlots);
+  const goals = useApp((s) => s.goals);
+  const pushNotice = useApp((s) => s.pushNotice);
 
   useEffect(() => {
     if (!user || !date) return;
     const tick = () => {
-      const due = reminderPayloads({
-        tasks,
+      const drafts = collectInboxNotices({
+        userId: user.id,
         timezone: user.timezone,
         today: todayKey(user.timezone),
-        seen: seen.current,
+        tasks,
+        busy,
+        goals,
+        friendName: friendName(creature?.name),
       });
-      for (const item of due) {
-        seen.current.add(item.key);
-        const body =
-          item.body.kind === "soon"
-            ? t("remind.soon", { task: item.body.task ?? "" })
-            : item.body.kind === "now"
-              ? t("remind.now", { task: item.body.task ?? "" })
-              : t("remind.streak", { need: item.body.need ?? 0 });
-        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-          if (navigator.serviceWorker?.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: "notify",
-              title: item.title,
-              body,
-            });
-          } else {
-            new Notification(item.title, { body });
-          }
+      for (const item of drafts) {
+        const added = pushNotice(item);
+        if (!added || typeof Notification === "undefined" || Notification.permission !== "granted") continue;
+        if (navigator.serviceWorker?.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "notify",
+            title: item.title,
+            body: item.body,
+          });
+        } else {
+          new Notification(item.title, { body: item.body });
         }
       }
     };
     tick();
     const id = window.setInterval(tick, 30000);
     return () => window.clearInterval(id);
-  }, [user, tasks, date]);
+  }, [user, creature, date, tasks, busy, goals, pushNotice]);
 
   return null;
 }

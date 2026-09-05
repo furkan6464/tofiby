@@ -21,6 +21,7 @@ import { CreatureView } from "./CreatureView";
 import { StageProgress } from "./StageProgress";
 import { openAiChat } from "@/lib/ai";
 import { AiChatOrb } from "@/components/ai/AiChatOrb";
+import { AppTools } from "@/components/layout/AppTools";
 import type { SpriteState } from "@/data/creatures/types";
 
 function useCreaturePanel() {
@@ -248,6 +249,7 @@ export function CreatureBar() {
         </p>
       </Link>
       {greet ? <p className="text-xs text-muted">{t("story.morning")}</p> : null}
+      <AppTools />
       <AiChatOrb
         size="sm"
         speciesId={creature.speciesId}

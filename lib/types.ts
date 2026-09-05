@@ -271,7 +271,9 @@ export type NoticeKind =
   | "streak"
   | "letter"
   | "achievement"
-  | "together";
+  | "together"
+  | "remind"
+  | "smart";
 
 export interface Notice {
   id: string;
