@@ -1,7 +1,9 @@
-import { gameRulesForAi, routeMapForAi } from "./aiRules";
+import { APP_ROUTES, gameRulesForAi, routeMapForAi } from "./aiRules";
+import { AI_TOOL_DECLARATIONS, groqToolDefs, normalizeToolCalls, toolRulesForAi } from "./aiTools";
 import type {
   AiFail,
   AiResult,
+  AiToolTrace,
   ChatCalendarAdd,
   ChatMessage,
   ChatReply,
@@ -146,6 +148,20 @@ function extractGeminiText(raw: string): string {
     return json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? raw;
   } catch {
     return raw;
+  }
+}
+
+function extractGeminiTurn(raw: string): { text: string; calls: ChatReply["toolCalls"] } {
+  try {
+    const json = JSON.parse(raw) as {
+      candidates?: { content?: { parts?: Record<string, unknown>[] } }[];
+    };
+    const parts = json.candidates?.[0]?.content?.parts ?? [];
+    const text = parts.map((p) => String(p.text ?? "")).join("").trim();
+    const calls = normalizeToolCalls(parts.filter((p) => p.functionCall));
+    return { text, calls };
+  } catch {
+    return { text: extractGeminiText(raw), calls: [] };
   }
 }
 
@@ -380,6 +396,17 @@ const CHAT_SCHEMA: JsonSchema = {
         required: ["title", "start", "end"],
       },
     },
+    toolCalls: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          name: { type: "STRING" },
+          args: { type: "OBJECT" },
+        },
+        required: ["name"],
+      },
+    },
   },
   required: ["reply"],
 };
@@ -517,65 +544,213 @@ export async function planGoal(data: GoalPlanInput): Promise<AiResult<GoalPlanDr
   });
 }
 
-export async function chat(
-  messages: ChatMessage[],
-  snapshot: CreatureSnapshot,
-): Promise<AiResult<ChatReply>> {
-  const system = [
+function chatSystem(snapshot: CreatureSnapshot) {
+  return [
     "Tofiby adlı bir planlama uygulamasının dostusun. Kısa, sıcak, Türkçe konuş.",
     gameRulesForAi(),
     routeMapForAi(),
+    toolRulesForAi(),
     "Büyüme tavsiyesinde yalnızca yukarıdaki gerçek formülleri ve kullanıcının güncel sayılarını kullan.",
-    "Takvim belleği snapshot.week'tedir. SADECE onu kullan. Okul/ders programı uydurma. Fotoğraf isteme — kullanıcı ataşla dosya göndermedikçe.",
-    "calendarEmpty true ise bu kişi okula gitmiyor olabilir; program sorma. preferredWindow (morning/noon/evening/night) ve free boşluklardan saat seç.",
-    "Çalışma/görev koyarken busy ile çakışan saati önerme. Çakışırsa uyar: hangi gün, saat, mevcut başlık. En yakın free aralığı öner ve onu calendarAdds'e yaz.",
-    "Takvime görev EKLEME. Sen yazamazsın. Planı calendarAdds'e koy, reply'de 'onaylarsan eklerim' de. ASLA ekledim/yazdım/koydum deme.",
-    "calendarAdds: title, start, end HH:MM. Tek sefer: recurring=false, date=YYYY-MM-DD. Her gün: her weekday için ayrı satır (0=Pazar … 6=Cumartesi), restDay varsa o günü atla. Her hafta aynı gün: recurring=true + weekday.",
+    "Takvim belleği snapshot.week'tedir. SADECE onu kullan. Okul/ders programı uydurma.",
+    "calendarEmpty true ise program sorma. preferredWindow ve free boşluklardan saat seç.",
+    "Çalışma koyarken busy ile çakışma. Çakışırsa uyar ve en yakın free aralığı kullan.",
     "Kullanıcının güncel durumu:",
     JSON.stringify(snapshot),
   ].join("\n\n");
+}
+
+function allowedLinks(raw: unknown): ChatReply["links"] {
+  const allowed = new Set<string>(APP_ROUTES.map((r) => r.href));
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((l) => {
+      const row = l as Record<string, unknown>;
+      const href = String(row.href ?? "");
+      const label = String(row.label ?? "Git").trim() || "Git";
+      if (!allowed.has(href)) return null;
+      return { label, href };
+    })
+    .filter((x): x is ChatReply["links"][number] => Boolean(x));
+}
+
+function emptyReply(): ChatReply {
+  return { reply: "", links: [], calendarAdds: [], toolCalls: [] };
+}
+
+function contentsFromChat(messages: ChatMessage[], traces?: AiToolTrace[]) {
+  const contents: Record<string, unknown>[] = messages.map((m) => ({
+    role: m.role === "model" ? "model" : "user",
+    parts: [{ text: m.text }],
+  }));
+  if (traces && traces.length) {
+    contents.push({
+      role: "model",
+      parts: traces.map((t) => ({ functionCall: { name: t.call.name, args: t.call.args } })),
+    });
+    contents.push({
+      role: "user",
+      parts: traces.map((t) => ({
+        functionResponse: { name: t.call.name, response: t.result.data },
+      })),
+    });
+  }
+  return contents;
+}
+
+async function geminiToolTurn(input: {
+  system: string;
+  messages: ChatMessage[];
+  traces?: AiToolTrace[];
+}): Promise<{ status: number; text: string; turn: ChatReply | null }> {
+  const key = geminiKey();
+  if (!key) return { status: 503, text: "missing gemini key", turn: null };
+  const body = {
+    system_instruction: { parts: [{ text: input.system }] },
+    contents: contentsFromChat(
+      input.messages.length ? input.messages : [{ role: "user", text: "Merhaba" }],
+      input.traces,
+    ),
+    tools: [{ functionDeclarations: AI_TOOL_DECLARATIONS }],
+    toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+    generationConfig: { temperature: 0.4 },
+  };
+  let last = { status: 503, text: "gemini empty" };
+  for (const useQueryKey of [false, true]) {
+    last = await geminiOnce(key, body, useQueryKey);
+    if (last.status === 200) {
+      const parsed = extractGeminiTurn(last.text);
+      if (parsed.text || parsed.calls.length) {
+        return {
+          status: 200,
+          text: last.text,
+          turn: { reply: parsed.text, links: [], calendarAdds: [], toolCalls: parsed.calls },
+        };
+      }
+    }
+    if (last.status === 429) return { status: last.status, text: last.text, turn: null };
+  }
+  return { status: last.status, text: last.text, turn: null };
+}
+
+async function groqToolTurn(input: {
+  system: string;
+  messages: ChatMessage[];
+  traces?: AiToolTrace[];
+}): Promise<{ status: number; turn: ChatReply | null }> {
+  const key = groqKey();
+  if (!key) return { status: 503, turn: null };
+  const messages: Record<string, unknown>[] = [
+    { role: "system", content: input.system },
+    ...input.messages.map((m) => ({
+      role: m.role === "model" ? "assistant" : "user",
+      content: m.text,
+    })),
+  ];
+  if (input.traces?.length) {
+    messages.push({
+      role: "assistant",
+      tool_calls: input.traces.map((t) => ({
+        id: t.call.id,
+        type: "function",
+        function: { name: t.call.name, arguments: JSON.stringify(t.call.args) },
+      })),
+    });
+    for (const t of input.traces) {
+      messages.push({
+        role: "tool",
+        tool_call_id: t.call.id,
+        content: JSON.stringify(t.result.data),
+      });
+    }
+  }
+  const res = await fetch(GROQ_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: groqModel(),
+      temperature: 0.4,
+      tools: groqToolDefs(),
+      tool_choice: "auto",
+      messages,
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) return { status: res.status, turn: null };
+  try {
+    const json = JSON.parse(text) as {
+      choices?: { message?: { content?: string; tool_calls?: unknown[] } }[];
+    };
+    const msg = json.choices?.[0]?.message;
+    return {
+      status: 200,
+      turn: {
+        reply: String(msg?.content ?? "").trim(),
+        links: [],
+        calendarAdds: [],
+        toolCalls: normalizeToolCalls(msg?.tool_calls ?? []),
+      },
+    };
+  } catch {
+    return { status: 200, turn: null };
+  }
+}
+
+async function chatTurn(
+  messages: ChatMessage[],
+  snapshot: CreatureSnapshot,
+  traces?: AiToolTrace[],
+): Promise<AiResult<ChatReply>> {
+  const system = chatSystem(snapshot);
   const recent = messages.slice(-16);
-  return completeJson({
+  const gemini = await geminiToolTurn({ system, messages: recent, traces });
+  if (gemini.status === 429) return fail("rate_limited");
+  if (gemini.turn && (gemini.turn.reply || gemini.turn.toolCalls.length)) {
+    return { ok: true, data: gemini.turn };
+  }
+  const groq = await groqToolTurn({ system, messages: recent, traces });
+  if (groq.status === 429) return fail("rate_limited");
+  if (groq.turn && (groq.turn.reply || groq.turn.toolCalls.length)) {
+    return { ok: true, data: groq.turn };
+  }
+  const fallback = await completeJson({
     system,
     messages: recent.length ? recent : [{ role: "user", text: "Merhaba" }],
-    // week snapshot is the memory — keep a bit more chat so follow-ups stay on the plan
     schema: CHAT_SCHEMA,
     schemaHint:
-      '{ "reply": "…", "links": [{ "label": "Takvime git", "href": "/takvim" }], "calendarAdds": [{ "title": "İngilizce", "date": "2026-09-05", "weekday": null, "recurring": false, "start": "19:00", "end": "20:00" }] }',
+      '{ "reply": "…", "links": [{ "label": "Takvime git", "href": "/takvim" }], "calendarAdds": [], "toolCalls": [{ "name": "createTask", "args": { "title": "Python", "date": "2026-09-08", "time": "19:00" } }] }',
     allowGroq: true,
     temperature: 0.5,
     parse: (raw) => {
       const r = raw as Record<string, unknown>;
       const reply = String(r.reply ?? "").trim();
-      if (!reply) return null;
-      const allowed = new Set([
-        "/anasayfa",
-        "/gorevler",
-        "/takvim",
-        "/hedeflerim",
-        "/analiz",
-        "/yaratigim",
-        "/topluluk",
-        "/nesil",
-        "/profil",
-        "/ayarlar",
-      ]);
-      const links = Array.isArray(r.links)
-        ? r.links
-            .map((l) => {
-              const row = l as Record<string, unknown>;
-              const href = String(row.href ?? "");
-              const label = String(row.label ?? "Git").trim() || "Git";
-              if (!allowed.has(href)) return null;
-              return { label, href };
-            })
-            .filter((x): x is ChatReply["links"][number] => Boolean(x))
-        : [];
+      const toolCalls = normalizeToolCalls(Array.isArray(r.toolCalls) ? r.toolCalls : []);
+      if (!reply && toolCalls.length === 0) return null;
       const today = String(snapshot?.today ?? "").slice(0, 10);
-      const calendarAdds = parseCalendarAdds(r.calendarAdds, today, Number(snapshot?.weekday));
-      return { reply, links, calendarAdds };
+      return {
+        reply,
+        links: allowedLinks(r.links),
+        calendarAdds: parseCalendarAdds(r.calendarAdds, today, Number(snapshot?.weekday)),
+        toolCalls,
+      };
     },
   });
+  if (!fallback.ok) return fallback;
+  return { ok: true, data: { ...emptyReply(), ...fallback.data } };
+}
+
+export async function chat(
+  messages: ChatMessage[],
+  snapshot: CreatureSnapshot,
+): Promise<AiResult<ChatReply>> {
+  return chatTurn(messages, snapshot);
+}
+
+export async function chatContinue(
+  messages: ChatMessage[],
+  snapshot: CreatureSnapshot,
+  traces: AiToolTrace[],
+): Promise<AiResult<ChatReply>> {
+  return chatTurn(messages, snapshot, traces);
 }
 
 function parseCalendarAdds(raw: unknown, today: string, todayWeekday: number): ChatCalendarAdd[] {

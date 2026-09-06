@@ -6,6 +6,7 @@ import { timeFromMinutes } from "./timeBlock";
 import { useApp, useSession } from "./store";
 import type {
   AiResult,
+  AiToolTrace,
   ChatMessage,
   ChatReply,
   CreatureSnapshot,
@@ -111,6 +112,14 @@ export async function chat(
   snapshot: CreatureSnapshot,
 ): Promise<AiResult<ChatReply>> {
   return post({ action: "chat", messages, snapshot });
+}
+
+export async function chatContinue(
+  messages: ChatMessage[],
+  snapshot: CreatureSnapshot,
+  traces: AiToolTrace[],
+): Promise<AiResult<ChatReply>> {
+  return post({ action: "chatContinue", messages, snapshot, traces });
 }
 
 export function weekFreeWindows(

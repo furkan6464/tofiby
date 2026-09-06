@@ -34,6 +34,6 @@ export function routeMapForAi(): string {
   return [
     "Uygulama sayfaları — yönlendirme için SADECE bu href değerlerini kullan:",
     ...APP_ROUTES.map((r) => `- ${r.href} — ${r.label}: ${r.hint}`),
-    "Kullanıcı bir yeri sorarsa links dizisine tıklanabilir Git hedefi koy (label + href).",
+    "Kullanıcı bir yeri sorarsa navigateTo aracını çağır veya links dizisine href koy.",
   ].join("\n");
 }

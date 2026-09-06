@@ -61,6 +61,7 @@ export function buildChatSnapshot(input: {
   tasks: Task[];
   busy: BusySlot[];
   goals: Goal[];
+  hasAttachedFile?: boolean;
 }): CreatureSnapshot {
   const today = todayKey(input.timezone);
   const week = chatWeek(input.userId, input.timezone, input.tasks, input.busy);
@@ -83,10 +84,12 @@ export function buildChatSnapshot(input: {
     goals: input.goals
       .filter((g) => g.userId === input.userId && g.status === "active")
       .map((g) => ({
+        id: g.id,
         title: g.title,
         weeklyFrequency: g.weeklyFrequency,
         dailyMins: g.dailyDurationMinutes,
       })),
+    hasAttachedFile: Boolean(input.hasAttachedFile),
   };
 }
 

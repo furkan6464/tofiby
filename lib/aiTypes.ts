@@ -1,4 +1,40 @@
-export type AiAction = "parseSchedule" | "suggestStudyHours" | "planGoal" | "chat";
+export type AiAction = "parseSchedule" | "suggestStudyHours" | "planGoal" | "chat" | "chatContinue";
+
+export type AiToolName =
+  | "createTask"
+  | "createGoal"
+  | "scheduleStudyHours"
+  | "postponeTask"
+  | "markTaskComplete"
+  | "parseSchedulePhoto"
+  | "getUserStats"
+  | "getGoalProgress"
+  | "navigateTo";
+
+export interface AiToolCall {
+  id: string;
+  name: AiToolName;
+  args: Record<string, unknown>;
+}
+
+export interface AiToolResult {
+  id: string;
+  name: AiToolName;
+  ok: boolean;
+  data: Record<string, unknown>;
+}
+
+export interface AiToolTrace {
+  call: AiToolCall;
+  result: AiToolResult;
+}
+
+export interface ChatUndo {
+  id: string;
+  label: string;
+  kind: AiToolName;
+  payload: Record<string, unknown>;
+}
 
 export interface ScheduleLesson {
   gun: string;
@@ -44,6 +80,7 @@ export interface ChatReply {
   reply: string;
   links: ChatLink[];
   calendarAdds: ChatCalendarAdd[];
+  toolCalls: AiToolCall[];
 }
 
 export interface ChatMessage {
@@ -80,7 +117,8 @@ export interface CreatureSnapshot {
   restDay: number | null;
   calendarEmpty: boolean;
   week: ChatDay[];
-  goals: { title: string; weeklyFrequency: number | null; dailyMins: number | null }[];
+  goals: { id: string; title: string; weeklyFrequency: number | null; dailyMins: number | null }[];
+  hasAttachedFile?: boolean;
 }
 
 export interface FreeWindow {

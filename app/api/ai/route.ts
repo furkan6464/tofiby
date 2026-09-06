@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
-import { chat, parseSchedule, planGoal, suggestStudyHours } from "@/lib/aiClient";
-import type { AiAction, ChatMessage, CreatureSnapshot, GoalPlanInput, StudySuggestInput } from "@/lib/aiTypes";
+import { chat, chatContinue, parseSchedule, planGoal, suggestStudyHours } from "@/lib/aiClient";
+import type {
+  AiAction,
+  AiToolTrace,
+  ChatMessage,
+  CreatureSnapshot,
+  GoalPlanInput,
+  StudySuggestInput,
+} from "@/lib/aiTypes";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +52,15 @@ export async function POST(req: Request) {
     if (action === "chat") {
       return NextResponse.json(
         await chat((body.messages as ChatMessage[]) ?? [], body.snapshot as CreatureSnapshot),
+      );
+    }
+    if (action === "chatContinue") {
+      return NextResponse.json(
+        await chatContinue(
+          (body.messages as ChatMessage[]) ?? [],
+          body.snapshot as CreatureSnapshot,
+          (body.traces as AiToolTrace[]) ?? [],
+        ),
       );
     }
     return NextResponse.json({ ok: false, error: "bad_input" }, { status: 400 });

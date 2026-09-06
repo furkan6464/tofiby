@@ -2,21 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { History, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { friendName, t } from "@/lib/i18n";
-import { chat, parseSchedule } from "@/lib/ai";
-import { calendarAddMinutes } from "@/lib/aiCalendar";
-import { buildChatSnapshot, calendarConflicts, planFromAccount } from "@/lib/aiContext";
+import { chat, chatContinue, parseSchedule } from "@/lib/ai";
+import { buildChatSnapshot, planFromAccount } from "@/lib/aiContext";
 import { aiErrorText } from "@/lib/aiCopy";
-import type { ChatCalendarAdd, ChatMessage, ChatReply, ScheduleLesson } from "@/lib/aiTypes";
+import { applyChatCalendarAdds, runAiTools, undoAiAction } from "@/lib/aiToolRuntime";
+import type { AiToolTrace, ChatMessage, ChatReply, ChatUndo, ScheduleLesson } from "@/lib/aiTypes";
 import { todayKey } from "@/lib/dates";
-import { durationBetween, endTime } from "@/lib/timeBlock";
+import { durationBetween } from "@/lib/timeBlock";
 import { liveProgress, useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { LessonEditor } from "./LessonEditor";
 
-type Bubble = ChatMessage & { links?: ChatReply["links"] };
+type Bubble = ChatMessage & { links?: ChatReply["links"]; undos?: ChatUndo[] };
 
 export function FriendChatHost() {
   const path = usePathname();
@@ -63,10 +63,10 @@ function FriendChat({
 }) {
   const user = useSession();
   const creature = useActiveCreature();
+  const router = useRouter();
   const goals = useApp((s) => s.goals);
   const threads = useApp((s) => s.chatThreads ?? []);
   const addRecurringSessions = useApp((s) => s.addRecurringSessions);
-  const addTask = useApp((s) => s.addTask);
   const saveChatThread = useApp((s) => s.saveChatThread);
   const deleteChatThread = useApp((s) => s.deleteChatThread);
   const pushToast = useApp((s) => s.pushToast);
@@ -78,7 +78,6 @@ function FriendChat({
   const [err, setErr] = useState("");
   const [msgs, setMsgs] = useState<Bubble[]>([]);
   const [lessons, setLessons] = useState<ScheduleLesson[] | null>(null);
-  const [calendarAdds, setCalendarAdds] = useState<ChatCalendarAdd[] | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
@@ -102,7 +101,7 @@ function FriendChat({
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [msgs, busy, file, lessons, calendarAdds]);
+  }, [msgs, busy, file, lessons]);
 
   useEffect(() => {
     if (skipSave.current) {
@@ -158,13 +157,11 @@ function FriendChat({
     tasks: allTasks,
     busy: busySlots,
     goals,
+    hasAttachedFile: Boolean(file),
   });
-  const clashes = calendarAdds?.length ? calendarConflicts(calendarAdds, snapshot.week) : [];
   const mine = threads
     .filter((x) => x.userId === user.id)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const weekdays = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
-
   function clearFile() {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
@@ -179,7 +176,6 @@ function FriendChat({
     setMsgs([]);
     setShowHistory(false);
     setLessons(null);
-    setCalendarAdds(null);
     setErr("");
   }
 
@@ -187,88 +183,132 @@ function FriendChat({
     const next = text.trim();
     if (busy || !user || !creature) return;
     if (!next && !file) return;
+    const attached = file;
     setText("");
     setErr("");
     setShowHistory(false);
-    if (file) {
-      const label = next
-        ? `${next}\n${t("ai.attached", { name: file.name })}`
-        : t("ai.attached", { name: file.name });
+
+    if (attached && !next) {
+      const label = t("ai.attached", { name: attached.name });
       setMsgs((cur) => [...cur, { role: "user", text: label }]);
       setBusy(true);
-      const result = await parseSchedule(file, next);
+      const parsed = await parseSchedule(attached, "");
       setBusy(false);
-      if (!result.ok) {
-        setErr(aiErrorText(result.error));
+      if (!parsed.ok) {
+        setErr(aiErrorText(parsed.error));
         return;
       }
-      if (result.data.length === 0) {
+      if (parsed.data.length === 0) {
         setErr(t("ai.emptyLessons"));
         return;
       }
-      setLessons(result.data);
+      setLessons(parsed.data);
       setMsgs((cur) => [...cur, { role: "model", text: t("ai.chatFileAck") }]);
       return;
     }
+
+    const userText = attached
+      ? `${next}\n${t("ai.attached", { name: attached.name })}`
+      : next;
     const history: ChatMessage[] = [
       ...msgs.map(({ role, text: body }) => ({ role, text: body })),
-      { role: "user", text: next },
+      { role: "user", text: userText },
     ];
-    setMsgs((cur) => [...cur, { role: "user", text: next }]);
+    setMsgs((cur) => [...cur, { role: "user", text: userText }]);
     setBusy(true);
-    const result = await chat(history, snapshot);
-    setBusy(false);
-    if (!result.ok) {
-      setErr(aiErrorText(result.error));
-      return;
-    }
-    const specifiedTime = /\d{1,2}[.:]\d{2}/.test(next);
-    const wantsBest = /uygun saat|en uygun|hangisi ise/i.test(next);
-    let adds =
-      result.data.calendarAdds.length > 0 ? result.data.calendarAdds : planFromAccount(next, snapshot);
-    if (adds.length && (!specifiedTime || wantsBest) && calendarConflicts(adds, snapshot.week).length) {
-      const shifted = planFromAccount(next, snapshot);
-      if (shifted.length) adds = shifted;
-    }
-    const claimed = /ekledim|yazdım|yazdim|koydum|eklendi/i.test(result.data.reply);
-    const reply = claimed && adds.length ? t("ai.calendarAsk") : result.data.reply;
-    if (adds.length) setCalendarAdds(adds);
-    setMsgs((cur) => [...cur, { role: "model", text: reply, links: result.data.links }]);
-  }
 
-  function confirmCalendar() {
-    const rows = calendarAdds ?? [];
-    let added = 0;
-    let firstDate: string | null = null;
-    for (const row of rows) {
-      const title = row.title.trim();
-      if (!title || !row.start) continue;
-      const mins = calendarAddMinutes(row);
-      if (row.recurring && row.weekday != null) {
-        const result = addRecurringSessions([
-          { title, weekday: row.weekday, time: row.start, estimatedDurationMinutes: mins },
-        ]);
-        added += result.added;
-        firstDate = firstDate ?? result.firstDate;
-        continue;
+    const snap = { ...snapshot, hasAttachedFile: Boolean(attached) };
+    let result = await chat(history, snap);
+    const undos: ChatUndo[] = [];
+    let usedTools = false;
+    let last: ChatReply | null = null;
+    let pendingHref: string | null = null;
+
+    for (let i = 0; i < 4; i++) {
+      if (!result.ok) {
+        setBusy(false);
+        if (attached) clearFile();
+        if (undos.length || last) {
+          setMsgs((cur) => [
+            ...cur,
+            {
+              role: "model",
+              text: last?.reply.trim() || t("ai.done"),
+              links: last?.links ?? [],
+              undos,
+            },
+          ]);
+        }
+        setErr(aiErrorText(result.error));
+        return;
       }
-      const date = row.date || today;
-      addTask({ date, title, time: row.start, estimatedDurationMinutes: mins });
-      added += 1;
-      firstDate = firstDate ?? date;
+      last = {
+        ...result.data,
+        toolCalls: result.data.toolCalls ?? [],
+        links: result.data.links ?? [],
+        calendarAdds: result.data.calendarAdds ?? [],
+      };
+      if (!last.toolCalls.length) break;
+      usedTools = true;
+      const ran = runAiTools(last.toolCalls, {
+        navigate: (href) => {
+          pendingHref = href;
+        },
+        hasFile: Boolean(attached),
+      });
+      undos.push(...ran.undos);
+
+      const traces: AiToolTrace[] = last.toolCalls.map((call, idx) => {
+        const row = ran.results[idx] ?? {
+          id: call.id,
+          name: call.name,
+          ok: false,
+          data: { error: "missing" },
+        };
+        return { call, result: row };
+      });
+
+      for (const trace of traces) {
+        if (trace.call.name !== "parseSchedulePhoto" || !attached || !trace.result.ok) continue;
+        const parsed = await parseSchedule(attached, next);
+        if (!parsed.ok) {
+          trace.result.ok = false;
+          trace.result.data = { error: parsed.error };
+          continue;
+        }
+        setLessons(parsed.data);
+        trace.result.data = {
+          parsed: true,
+          count: parsed.data.length,
+          lessons: parsed.data.slice(0, 12),
+        };
+        if (parsed.data.length === 0) {
+          setErr(t("ai.emptyLessons"));
+        }
+      }
+
+      result = await chatContinue(history, { ...snap, hasAttachedFile: Boolean(attached) }, traces);
     }
-    if (!added) {
-      setErr(t("ai.noneAdded"));
-      return;
+
+    if (!usedTools && last) {
+      const adds = last.calendarAdds.length ? last.calendarAdds : planFromAccount(next, snap);
+      undos.push(...applyChatCalendarAdds(adds, today));
     }
-    setCalendarAdds(null);
-    pushToast(t("ai.addedTasks", { n: added }));
-    if (firstDate) {
-      setMsgs((cur) => [
-        ...cur,
-        { role: "model", text: t("ai.addedTasks", { n: added }), links: [{ label: t("nav.calendar"), href: "/takvim" }] },
-      ]);
+
+    setBusy(false);
+    if (attached) clearFile();
+    if (!last) return;
+    const links = [...last.links];
+    if (pendingHref && undos.length && !links.some((l) => l.href === pendingHref)) {
+      links.push({ label: t("ai.go"), href: pendingHref });
     }
+    const reply = last.reply.trim() || (undos.length || links.length ? t("ai.done") : "");
+    if (!reply && !undos.length && !links.length && !pendingHref) return;
+    setMsgs((cur) => [
+      ...cur,
+      { role: "model", text: reply, links, undos },
+    ]);
+    if (pendingHref && undos.length === 0) router.push(pendingHref);
   }
 
   function onFile(next: File | undefined) {
@@ -305,16 +345,6 @@ function FriendChat({
     dragCount.current = 0;
     setDrag(false);
     void onFile(e.dataTransfer.files?.[0]);
-  }
-
-  function addLabel(row: ChatCalendarAdd) {
-    const when = row.recurring
-      ? `${weekdays[row.weekday ?? 0] ?? ""} · ${t("ai.weekly")}`
-      : row.date === today
-        ? t("common.today")
-        : (row.date ?? today);
-    const finish = row.end && row.end !== row.start ? row.end : endTime(row.start, 60);
-    return `${row.title} · ${when} · ${row.start}–${finish}`;
   }
 
   return (
@@ -426,37 +456,36 @@ function FriendChat({
                     ))}
                   </div>
                 ) : null}
+                {m.undos?.length ? (
+                  <div className="mt-2 space-y-2">
+                    {m.undos.map((card) => (
+                      <div
+                        key={card.id}
+                        className="flex items-center justify-between gap-2 rounded-2xl border border-white/[0.08] bg-raised px-3 py-2 text-sm"
+                      >
+                        <p className="min-w-0 flex-1">{card.label}</p>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-chip bg-pink/15 px-2.5 py-1 text-xs text-pink"
+                          onClick={() => {
+                            undoAiAction(card);
+                            setMsgs((cur) =>
+                              cur.map((row, idx) =>
+                                idx === i
+                                  ? { ...row, undos: row.undos?.filter((u) => u.id !== card.id) }
+                                  : row,
+                              ),
+                            );
+                          }}
+                        >
+                          {t("ai.undo")}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
-            {calendarAdds?.length ? (
-              <div className="rounded-2xl border border-pink/40 bg-raised p-3">
-                <p className="mb-2 text-xs text-pink">{t("ai.calendarPreview")}</p>
-                <ul className="space-y-1 text-sm">
-                  {calendarAdds.map((row, i) => (
-                    <li key={`${row.title}-${i}`}>{addLabel(row)}</li>
-                  ))}
-                </ul>
-                {clashes.length ? (
-                  <ul className="mt-2 space-y-1 text-xs text-pink">
-                    {clashes.map((c, i) => (
-                      <li key={`${c.when}-${i}`}>
-                        {t("ai.conflict", { when: c.when, title: c.title })}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                <Button className="mt-3 w-full" type="button" disabled={busy} onClick={confirmCalendar}>
-                  {t("ai.confirm")}
-                </Button>
-                <button
-                  type="button"
-                  className="mt-2 w-full text-center text-[11px] text-faint"
-                  onClick={() => setCalendarAdds(null)}
-                >
-                  {t("ai.reject")}
-                </button>
-              </div>
-            ) : null}
             {lessons?.length ? (
               <div className="rounded-2xl border border-white/[0.08] bg-raised p-3">
                 <p className="mb-2 text-xs text-muted">{t("ai.preview")}</p>

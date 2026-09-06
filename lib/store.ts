@@ -147,7 +147,7 @@ interface AppState {
     hueShift?: number;
     gender?: CreatureGender;
   }) => void;
-  addGoal: (draft: DraftGoal) => void;
+  addGoal: (draft: DraftGoal) => { id: string; taskIds: string[] } | null;
   updateGoal: (id: string, patch: Partial<Goal>) => void;
   archiveGoal: (id: string, archived: boolean) => void;
   addTask: (input: {
@@ -161,14 +161,25 @@ interface AppState {
     weight?: number;
     time?: string | null;
     estimatedDurationMinutes?: number | null;
-  }) => void;
-  addRecurringSessions: (sessions: RecurringSession[]) => { added: number; firstDate: string | null };
+  }) => string | null;
+  addRecurringSessions: (sessions: RecurringSession[]) => {
+    added: number;
+    firstDate: string | null;
+    taskIds: string[];
+  };
   updateTask: (id: string, patch: Partial<Task>) => void;
   moveTask: (id: string, date: string, time?: string | null) => void;
   postponeTask: (id: string, toDate: string) => void;
   addMilestone: (goalId: string, title: string, weight?: number) => void;
   toggleMilestone: (id: string) => void;
-  planHours: (title: string, hours: number, week: string[]) => void;
+  planHours: (
+    title: string,
+    hours: number,
+    week: string[],
+    goalId?: string | null,
+  ) => { added: number; taskIds: string[] };
+  removeTasks: (ids: string[]) => void;
+  removeGoal: (id: string) => void;
   flushOffline: () => void;
   deleteAccount: () => Promise<{ ok: boolean; error?: string }>;
   updateTaskSeries: (
@@ -541,7 +552,7 @@ export const useApp = create<AppState>()(
       },
       addGoal: (draft) => {
         const user = currentUser(get());
-        if (!user) return;
+        if (!user) return null;
         const today = todayKey(user.timezone);
         const horizon = addDays(today, GAME_CONFIG.TASK_HORIZON_DAYS);
         const goal: Goal = {
@@ -579,6 +590,7 @@ export const useApp = create<AppState>()(
           milestones: [...get().milestones, ...stones],
           tasks: [...get().tasks, ...extra],
         });
+        return { id: goal.id, taskIds: extra.map((x) => x.id) };
       },
       updateGoal: (id, patch) => {
         set({
@@ -594,7 +606,7 @@ export const useApp = create<AppState>()(
       },
       addTask: ({ date, title, note, description, priority, goalId, milestoneId, weight, time, estimatedDurationMinutes }) => {
         const user = currentUser(get());
-        if (!user) return;
+        if (!user) return null;
         const created = hydrateTask({
           id: uid(),
           userId: user.id,
@@ -613,10 +625,11 @@ export const useApp = create<AppState>()(
           tasks: [...get().tasks, created],
           offlineOps: nextOffline(get().offlineOps, "add", { id: created.id, date, title }),
         });
+        return created.id;
       },
       addRecurringSessions: (sessions) => {
         const user = currentUser(get());
-        if (!user || sessions.length === 0) return { added: 0, firstDate: null };
+        if (!user || sessions.length === 0) return { added: 0, firstDate: null, taskIds: [] };
         const today = todayKey(user.timezone);
         const horizon = addDays(today, GAME_CONFIG.TASK_HORIZON_DAYS);
         const extra: Task[] = [];
@@ -642,9 +655,9 @@ export const useApp = create<AppState>()(
             );
           }
         }
-        if (extra.length === 0) return { added: 0, firstDate: null };
+        if (extra.length === 0) return { added: 0, firstDate: null, taskIds: [] };
         set({ tasks: [...get().tasks, ...extra] });
-        return { added: extra.length, firstDate: extra[0]?.date ?? null };
+        return { added: extra.length, firstDate: extra[0]?.date ?? null, taskIds: extra.map((x) => x.id) };
       },
       updateTask: (id, patch) => {
         set({
@@ -722,9 +735,9 @@ export const useApp = create<AppState>()(
           ),
         });
       },
-      planHours: (title, hours, week) => {
+      planHours: (title, hours, week, goalId) => {
         const user = currentUser(get());
-        if (!user) return;
+        if (!user) return { added: 0, taskIds: [] };
         const slots = scheduleHours({
           hours,
           title,
@@ -733,20 +746,29 @@ export const useApp = create<AppState>()(
           busy: get().busySlots,
           userId: user.id,
         });
+        const extra = slots.map((s) =>
+          hydrateTask({
+            id: uid(),
+            userId: user.id,
+            goalId: goalId ?? null,
+            date: s.date,
+            time: s.time,
+            title,
+            estimatedDurationMinutes: s.minutes,
+          }),
+        );
+        if (extra.length === 0) return { added: 0, taskIds: [] };
+        set({ tasks: [...get().tasks, ...extra] });
+        return { added: extra.length, taskIds: extra.map((x) => x.id) };
+      },
+      removeTasks: (ids) => {
+        const drop = new Set(ids);
+        set({ tasks: get().tasks.filter((x) => !drop.has(x.id)) });
+      },
+      removeGoal: (id) => {
         set({
-          tasks: [
-            ...get().tasks,
-            ...slots.map((s) =>
-              hydrateTask({
-                id: uid(),
-                userId: user.id,
-                date: s.date,
-                time: s.time,
-                title,
-                estimatedDurationMinutes: s.minutes,
-              }),
-            ),
-          ],
+          goals: get().goals.filter((g) => g.id !== id),
+          milestones: get().milestones.filter((m) => m.goalId !== id),
         });
       },
       flushOffline: () => set({ offlineOps: [] }),
