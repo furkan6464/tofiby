@@ -1,4 +1,10 @@
-export type AiAction = "parseSchedule" | "suggestStudyHours" | "planGoal" | "chat" | "chatContinue";
+export type AiAction =
+  | "parseSchedule"
+  | "suggestStudyHours"
+  | "planGoal"
+  | "chat"
+  | "chatContinue"
+  | "distillMemory";
 
 export type AiToolName =
   | "createTask"
@@ -35,6 +41,42 @@ export interface ChatUndo {
   kind: AiToolName;
   payload: Record<string, unknown>;
 }
+
+export interface TaskDraft {
+  title: string;
+  date: string;
+  time?: string | null;
+  durationMinutes?: number | null;
+  goalId?: string | null;
+  priority?: string;
+}
+
+export type ChatPending =
+  | {
+      kind: "consultHours";
+      title: string;
+      hours: number;
+      goalId?: string | null;
+      week: "this" | "next";
+    }
+  | { kind: "consultTime"; draft: TaskDraft }
+  | {
+      kind: "pickSlots";
+      title: string;
+      hours?: number;
+      goalId?: string | null;
+      week: "this" | "next";
+      draft?: TaskDraft;
+      mode: "hours" | "task";
+    }
+  | { kind: "confirmTask"; draft: TaskDraft }
+  | {
+      kind: "nextWeek";
+      title: string;
+      hours: number;
+      leftoverHours: number;
+      goalId?: string | null;
+    };
 
 export interface ScheduleLesson {
   gun: string;
@@ -117,8 +159,21 @@ export interface CreatureSnapshot {
   restDay: number | null;
   calendarEmpty: boolean;
   week: ChatDay[];
-  goals: { id: string; title: string; weeklyFrequency: number | null; dailyMins: number | null }[];
+  goals: {
+    id: string;
+    title: string;
+    weeklyFrequency: number | null;
+    dailyMins: number | null;
+    pct?: number;
+    next?: string | null;
+  }[];
   hasAttachedFile?: boolean;
+  now?: string;
+  insightEnough?: boolean;
+  bestHourWindow?: string | null;
+  remainingWeek?: string[];
+  dcs7?: { date: string; dcs: number | null }[];
+  memory?: string[];
 }
 
 export interface FreeWindow {

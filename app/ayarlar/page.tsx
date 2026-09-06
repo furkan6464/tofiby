@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { detectTimezone } from "@/lib/dates";
 import { downloadText, dumpCsv, dumpJson } from "@/lib/exportData";
+import { deleteMemoryNote, wipeMemory } from "@/lib/aiMemory";
 import { useActiveCreature, useApp, useSession } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const milestones = useApp((s) => s.milestones);
   const tasks = useApp((s) => s.tasks);
   const scores = useApp((s) => s.scores);
+  const memory = useApp((s) => (s.aiMemory ?? []).filter((n) => n.userId === user?.id));
   if (!user) return null;
 
   return (
@@ -83,6 +85,38 @@ export default function SettingsPage() {
         </label>
         <p className="text-[11px] text-faint">{user.aiOptIn ? t("settings.aiOn") : t("settings.aiOff")}</p>
       </Card>
+      {user.aiOptIn ? (
+        <Card className="mt-4 space-y-3 p-5">
+          <p className="text-sm text-faint">{t("settings.memoryTitle")}</p>
+          <p className="text-xs text-muted">{t("settings.memoryHint")}</p>
+          {memory.length === 0 ? <p className="text-sm text-faint">{t("settings.memoryEmpty")}</p> : null}
+          <ul className="space-y-2">
+            {memory.map((note) => (
+              <li key={note.id} className="flex items-start justify-between gap-3 rounded-2xl bg-raised px-3 py-2">
+                <p className="min-w-0 flex-1 text-sm">{note.text}</p>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-faint hover:text-pink"
+                  onClick={() => deleteMemoryNote(note.id)}
+                >
+                  {t("common.delete")}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {memory.length > 0 ? (
+            <Button
+              tone="ghost"
+              onClick={() => {
+                if (!window.confirm(t("settings.memoryClearAsk"))) return;
+                wipeMemory();
+              }}
+            >
+              {t("settings.memoryClear")}
+            </Button>
+          ) : null}
+        </Card>
+      ) : null}
       <Card className="mt-4 space-y-3 p-5">
         <p className="text-sm text-faint">{t("settings.notify")}</p>
         <label className="flex items-center justify-between text-sm">

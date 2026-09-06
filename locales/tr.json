@@ -408,7 +408,12 @@
     "aiOptIn": "AI özelliklerini kullanmak istiyor musun?",
     "aiHint": "Ders programı fotoğrafı, çalışma saati önerisi, plan taslağı ve dost sohbeti Google Gemini’a (yoğunlukta Groq yedeğine) gider. Ücretsiz katmanda bu veri eğitim için kullanılabilir. Onay vermezsen uygulama elle aynen çalışır.",
     "aiOn": "AI açık — buradan kapatabilirsin",
-    "aiOff": "Kapalı — sohbet veya program yüklerken tekrar sorulur"
+    "aiOff": "Kapalı — sohbet veya program yüklerken tekrar sorulur",
+    "memoryTitle": "AI Hafızam",
+    "memoryHint": "Dostun yalnızca senin söylediğin veya verilerde net görünen notları tutar. İstediğini silebilirsin.",
+    "memoryEmpty": "Henüz kalıcı not yok. Birkaç sohbetten sonra burada görünür.",
+    "memoryClear": "Tüm hafızayı temizle",
+    "memoryClearAsk": "Tüm kalıcı AI notları silinsin mi?"
   },
   "ai": {
     "consentTitle": "AI kullanılsın mı?",
@@ -448,6 +453,16 @@
     "didPostpone": "✅ “{title}” {date} tarihine alındı.",
     "didDone": "✅ “{title}” tamamlandı.",
     "didBatch": "✅ {n} görevi takvime ekledim.",
+    "consultHours": "En verimli çalıştığın saatler {window} — bu saatlere göre mi ayarlayayım, yoksa saatleri sen mi seçmek istersin?",
+    "consultNoData": "Henüz en verimli saatini çıkaracak kadar veri yok. Saatleri sen seç.",
+    "useInsight": "Bu saatlere göre ayarla",
+    "pickSlots": "Ben seçeyim",
+    "useSlot": "Bu saati kullan",
+    "confirmTask": "“{title}” görevini {when} ekleyeyim mi?",
+    "confirmYes": "Evet, ekle",
+    "weekFull": "Bu hafta için yeterli boş gün kalmadı, gelecek haftaya taşıyayım mı?",
+    "weekPartial": "Bu haftaya {fit} saat sığdı. Kalan {left} saati gelecek haftaya taşıyayım mı?",
+    "nextWeekYes": "Gelecek haftaya taşı",
     "undo": "Geri al",
     "undone": "Geri alındı.",
     "done": "Tamam.",
@@ -462,6 +477,7 @@
     "dropHere": "Dosyayı buraya bırak",
     "removeFile": "Dosyayı kaldır",
     "chatFileAck": "Programı okudum. Aşağıdaki dersleri onaylarsan takvime tekrarlayan görev olarak eklerim.",
+    "send": "Gönder",
     "go": "Git",
     "reading": "Okuyor…",
     "thinking": "Düşünüyor…"

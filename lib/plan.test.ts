@@ -11,6 +11,7 @@ import {
   remainingToStreak,
   scheduleHours,
 } from "./plan";
+import { weekKeys } from "./dates";
 import { sampleTask } from "./testTask";
 import type { Milestone } from "./types";
 
@@ -143,5 +144,39 @@ describe("plan", () => {
     const free = findFreeSlots(busy);
     assert.ok(free.every((s) => s.endMin > s.startMin));
     assert.ok(!placed.some((p) => p.time === "09:00"));
+  });
+
+  it("never places study hours on days before today", () => {
+    const today = "2026-09-06";
+    const placed = scheduleHours({
+      hours: 3,
+      title: "SQL",
+      week: weekKeys(today),
+      tasks: [],
+      busy: [],
+      userId: "u",
+      today,
+      nowMin: 12 * 60,
+    });
+    assert.ok(placed.length > 0);
+    assert.ok(placed.every((p) => p.date >= today));
+  });
+
+  it("skips today's morning slot when the afternoon has already started", () => {
+    const placed = scheduleHours({
+      hours: 1,
+      title: "SQL",
+      week: ["2026-09-06"],
+      tasks: [],
+      busy: [],
+      userId: "u",
+      today: "2026-09-06",
+      nowMin: 15 * 60,
+    });
+    assert.ok(placed.every((p) => {
+      const [h, m] = p.time.split(":").map(Number);
+      return h * 60 + m >= 15 * 60;
+    }));
+    assert.ok(!placed.some((p) => p.time === "08:00" || p.time === "09:00"));
   });
 });

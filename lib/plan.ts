@@ -320,6 +320,36 @@ export function findFreeSlots(busy: BusySlot[], dayStart = 8 * 60, dayEnd = 22 *
   return free.filter((s) => s.endMin - s.startMin >= 25);
 }
 
+function clipFreeToNow(
+  slots: { startMin: number; endMin: number }[],
+  nowMin: number | undefined,
+): { startMin: number; endMin: number }[] {
+  if (nowMin == null) return slots;
+  return slots
+    .map((s) => ({ startMin: Math.max(s.startMin, nowMin), endMin: s.endMin }))
+    .filter((s) => s.endMin - s.startMin >= 25);
+}
+
+function takeChunk(
+  slot: { startMin: number; endMin: number },
+  left: number,
+  preferStartMin?: number,
+): { startMin: number; minutes: number } | null {
+  let start = slot.startMin;
+  if (preferStartMin != null) {
+    if (preferStartMin >= slot.startMin && preferStartMin + 25 <= slot.endMin) {
+      start = preferStartMin;
+    } else if (preferStartMin < slot.startMin) {
+      start = slot.startMin;
+    } else {
+      return null;
+    }
+  }
+  const minutes = Math.min(60, slot.endMin - start, left);
+  if (minutes < 25) return null;
+  return { startMin: start, minutes };
+}
+
 export function scheduleHours(input: {
   hours: number;
   title: string;
@@ -327,25 +357,88 @@ export function scheduleHours(input: {
   tasks: Task[];
   busy: BusySlot[];
   userId: string;
+  today?: string;
+  nowMin?: number;
+  preferStartMin?: number;
 }): { date: string; time: string; minutes: number }[] {
   const minutesNeeded = input.hours * 60;
   const placed: { date: string; time: string; minutes: number }[] = [];
   let left = minutesNeeded;
-  for (const date of input.week) {
-    if (left <= 0) break;
+  const days = input.week.filter((d) => !input.today || d >= input.today);
+
+  const freeOn = (date: string) => {
     const busy = collectBusy(input.tasks, input.busy, input.userId, date);
-    for (const slot of findFreeSlots(busy)) {
+    const raw = findFreeSlots(busy);
+    return input.today && date === input.today ? clipFreeToNow(raw, input.nowMin) : raw;
+  };
+
+  const push = (date: string, startMin: number, minutes: number) => {
+    const h = Math.floor(startMin / 60);
+    const m = startMin % 60;
+    placed.push({
+      date,
+      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      minutes,
+    });
+    left -= minutes;
+  };
+
+  if (input.preferStartMin != null) {
+    for (const date of days) {
       if (left <= 0) break;
-      const take = Math.min(60, slot.endMin - slot.startMin, left);
-      if (take < 25) continue;
-      const h = Math.floor(slot.startMin / 60);
-      const m = slot.startMin % 60;
-      placed.push({
-        date,
-        time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
-        minutes: take,
-      });
-      left -= take;
+      for (const slot of freeOn(date)) {
+        const chunk = takeChunk(slot, Math.min(60, left), input.preferStartMin);
+        if (!chunk) continue;
+        push(date, chunk.startMin, chunk.minutes);
+        break;
+      }
+    }
+  }
+
+  for (const date of days) {
+    if (left <= 0) break;
+    const taken = placed.filter((p) => p.date === date).map((p) => ({
+      startMin: Number(p.time.slice(0, 2)) * 60 + Number(p.time.slice(3, 5)),
+      endMin:
+        Number(p.time.slice(0, 2)) * 60 +
+        Number(p.time.slice(3, 5)) +
+        p.minutes,
+    }));
+    const free = findFreeSlots(
+      [
+        ...collectBusy(input.tasks, input.busy, input.userId, date),
+        ...taken.map((b, i) => ({
+          id: `placed-${date}-${i}`,
+          userId: input.userId,
+          date,
+          startMin: b.startMin,
+          endMin: b.endMin,
+          source: "app" as const,
+          title: input.title,
+        })),
+      ],
+      8 * 60,
+      22 * 60,
+    );
+    const open = input.today && date === input.today ? clipFreeToNow(free, input.nowMin) : free;
+    const ordered =
+      input.preferStartMin == null
+        ? open
+        : [...open].sort(
+            (a, b) =>
+              Math.abs(a.startMin - input.preferStartMin!) -
+              Math.abs(b.startMin - input.preferStartMin!),
+          );
+    for (const slot of ordered) {
+      if (left <= 0) break;
+      const chunk = takeChunk(slot, left, input.preferStartMin);
+      if (!chunk) {
+        const fallback = takeChunk(slot, left);
+        if (!fallback) continue;
+        push(date, fallback.startMin, fallback.minutes);
+        continue;
+      }
+      push(date, chunk.startMin, chunk.minutes);
     }
   }
   return placed;

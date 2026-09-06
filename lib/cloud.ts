@@ -3,6 +3,7 @@ import { defaultGenetics } from "./genetics";
 import { t } from "./i18n";
 import { createSupabaseBrowser } from "./supabase/client";
 import type {
+  AiMemoryNote,
   Creature,
   Friendship,
   Notice,
@@ -356,6 +357,47 @@ function mapCreature(row: Record<string, unknown>): Creature {
     unlockedRoomItems: (row.unlocked_room_items as string[]) ?? [],
     letters: [],
   };
+}
+
+export async function cloudPullMemory(userId: string): Promise<AiMemoryNote[] | null> {
+  const client = sb();
+  if (!client) return null;
+  const { data, error } = await client
+    .from("user_ai_memory")
+    .select("id, user_id, text, source, created_at")
+    .eq("user_id", userId);
+  if (error || !data) return null;
+  return data.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    text: String(row.text ?? "").trim(),
+    source: row.source === "observed" ? "observed" : "said",
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+  }));
+}
+
+export async function cloudUpsertMemory(note: AiMemoryNote) {
+  const client = sb();
+  if (!client) return;
+  await client.from("user_ai_memory").upsert({
+    id: note.id,
+    user_id: note.userId,
+    text: note.text,
+    source: note.source,
+    created_at: note.createdAt,
+  });
+}
+
+export async function cloudDeleteMemory(id: string) {
+  const client = sb();
+  if (!client) return;
+  await client.from("user_ai_memory").delete().eq("id", id);
+}
+
+export async function cloudClearMemory(userId: string) {
+  const client = sb();
+  if (!client) return;
+  await client.from("user_ai_memory").delete().eq("user_id", userId);
 }
 
 function mapAuthError(message: string) {

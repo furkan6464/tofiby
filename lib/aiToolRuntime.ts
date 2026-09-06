@@ -2,12 +2,13 @@
 
 import { GOAL_COLORS } from "./goalColors";
 import { t } from "./i18n";
-import { todayKey, weekKeys } from "./dates";
+import { nextWeekKeys, remainingWeekKeys, todayKey } from "./dates";
+import { isPastSlot } from "./aiPlanning";
 import { goalCardProgress, isActiveGoal } from "./plan";
 import { useApp } from "./store";
-import { APP_ROUTES } from "./aiRules";
+import { APP_ROUTES, BLOCKED_PAGE } from "./aiRules";
 import { toolKind } from "./aiTools";
-import type { AiToolCall, AiToolResult, ChatCalendarAdd, ChatUndo } from "./aiTypes";
+import type { AiToolCall, AiToolResult, ChatCalendarAdd, ChatUndo, TaskDraft } from "./aiTypes";
 import type { Task } from "./types";
 import { calendarAddMinutes } from "./aiCalendar";
 
@@ -67,11 +68,17 @@ export function runAiTools(
   for (const call of calls) {
     const kind = toolKind(call.name);
     if (kind === "blocked" || kind === "unknown") {
+      const page = BLOCKED_PAGE[call.name];
       results.push({
         id: call.id,
         name: call.name,
         ok: false,
-        data: { error: "blocked", hint: "Bu eylem sohbetten yapılamaz." },
+        data: {
+          error: "blocked",
+          hint: "Bu eylem sohbetten yapılamaz.",
+          href: page?.href ?? "/ayarlar",
+          label: page?.label ?? "Ayarlar",
+        },
       });
       continue;
     }
@@ -80,6 +87,58 @@ export function runAiTools(
     if (ran.undo) undos.push(ran.undo);
   }
   return { results, undos };
+}
+
+export function applyScheduleHours(input: {
+  title: string;
+  hours: number;
+  goalId?: string | null;
+  week: string[];
+  preferStartMin?: number | null;
+}): { added: number; taskIds: string[]; leftoverHours: number; weekFull: boolean; undo?: ChatUndo } {
+  const s = useApp.getState();
+  const placed = s.planHours(input.title, input.hours, input.week, input.goalId ?? null, input.preferStartMin);
+  const leftoverHours = Math.max(0, Math.round((placed.minutesNeeded - placed.minutesPlaced) / 60));
+  const weekFull = placed.minutesPlaced < placed.minutesNeeded;
+  return {
+    added: placed.added,
+    taskIds: placed.taskIds,
+    leftoverHours,
+    weekFull,
+    undo:
+      placed.added > 0
+        ? {
+            id: placed.taskIds[0] ?? uidSafe(),
+            label: t("ai.didHours", { title: input.title, n: input.hours - leftoverHours || input.hours }),
+            kind: "scheduleStudyHours",
+            payload: { taskIds: placed.taskIds },
+          }
+        : undefined,
+  };
+}
+
+export function applyTaskDraft(draft: TaskDraft): { undo?: ChatUndo; error?: string } {
+  const s = useApp.getState();
+  if (!draft.title || !/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) return { error: "missing" };
+  if (isPastSlot(draft.date, draft.time)) return { error: "past_slot" };
+  const created = s.addTask({
+    title: draft.title,
+    date: draft.date,
+    time: draft.time || null,
+    estimatedDurationMinutes: draft.durationMinutes ?? null,
+    priority: draft.priority === "high" || draft.priority === "low" ? draft.priority : "medium",
+    goalId: draft.goalId ?? null,
+  });
+  if (!created) return { error: "failed" };
+  const when = draft.time ? `${draft.date} ${draft.time}` : draft.date;
+  return {
+    undo: {
+      id: created,
+      label: t("ai.didTask", { title: draft.title, when }),
+      kind: "createTask",
+      payload: { taskIds: [created] },
+    },
+  };
 }
 
 function runOne(
@@ -156,9 +215,15 @@ function runOne(
 
   if (call.name === "createTask") {
     const title = str(args.title);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(str(args.date)) ? str(args.date) : today;
+    const date = str(args.date);
     if (!title) {
       return { result: { id: call.id, name: call.name, ok: false, data: { error: "missing_title" } } };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { result: { id: call.id, name: call.name, ok: false, data: { error: "missing_date" } } };
+    }
+    if (isPastSlot(date, str(args.time) || null)) {
+      return { result: { id: call.id, name: call.name, ok: false, data: { error: "past_slot" } } };
     }
     const goal = resolveGoal(args);
     const time = str(args.time) || null;
@@ -222,30 +287,36 @@ function runOne(
     }
     const goal = resolveGoal({ ...args, goalTitle: args.goalTitle || args.title });
     const title = goal?.title || str(args.goalTitle) || str(args.title) || "Çalışma";
-    const placed = s.planHours(title, hours, weekKeys(today), goal?.id ?? null);
+    const week = str(args.week) === "next" ? nextWeekKeys(today) : remainingWeekKeys(today);
+    const prefer = Number(args.preferStartMin);
+    const placed = applyScheduleHours({
+      title,
+      hours,
+      goalId: goal?.id ?? null,
+      week,
+      preferStartMin: Number.isFinite(prefer) ? prefer : null,
+    });
     return {
       result: {
         id: call.id,
         name: call.name,
         ok: placed.added > 0,
-        data: { added: placed.added, taskIds: placed.taskIds, title },
+        data: {
+          added: placed.added,
+          taskIds: placed.taskIds,
+          title,
+          leftoverHours: placed.leftoverHours,
+          weekFull: placed.weekFull,
+        },
       },
-      undo:
-        placed.added > 0
-          ? {
-              id: placed.taskIds[0] ?? call.id,
-              label: t("ai.didHours", { title, n: hours }),
-              kind: "scheduleStudyHours",
-              payload: { taskIds: placed.taskIds },
-            }
-          : undefined,
+      undo: placed.undo,
     };
   }
 
   if (call.name === "postponeTask") {
     const task = resolveTask(args);
     const to = str(args.newDate);
-    if (!task || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    if (!task || !/^\d{4}-\d{2}-\d{2}$/.test(to) || isPastSlot(to)) {
       return { result: { id: call.id, name: call.name, ok: false, data: { error: "task_or_date" } } };
     }
     const from = task.date;
@@ -291,6 +362,7 @@ export function applyChatCalendarAdds(rows: ChatCalendarAdd[], today: string): C
   for (const row of rows) {
     const title = str(row.title);
     if (!title || !row.start) continue;
+    if (!row.recurring && isPastSlot(row.date || today, row.start)) continue;
     const mins = calendarAddMinutes(row);
     if (row.recurring && row.weekday != null) {
       const result = s.addRecurringSessions([

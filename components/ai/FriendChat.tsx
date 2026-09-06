@@ -3,17 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { History, Paperclip, Plus, Trash2, X } from "lucide-react";
+import { History, Paperclip, Plus, Send, Trash2, X } from "lucide-react";
 import { friendName, t } from "@/lib/i18n";
 import { chat, chatContinue, parseSchedule } from "@/lib/ai";
+import { maybeDistillMemory } from "@/lib/aiMemory";
 import { buildChatSnapshot, planFromAccount } from "@/lib/aiContext";
 import { aiErrorText } from "@/lib/aiCopy";
-import { applyChatCalendarAdds, runAiTools, undoAiAction } from "@/lib/aiToolRuntime";
-import type { AiToolTrace, ChatMessage, ChatReply, ChatUndo, ScheduleLesson } from "@/lib/aiTypes";
-import { todayKey } from "@/lib/dates";
-import { durationBetween } from "@/lib/timeBlock";
+import {
+  consultChoice,
+  deferToolCalls,
+  insightReady,
+  planningNow,
+  taskWhenLabel,
+  userGaveFullTaskSpec,
+  yesNo,
+} from "@/lib/aiPlanning";
+import { gitLinksFromReply } from "@/lib/aiRules";
+import { applyChatCalendarAdds, applyScheduleHours, applyTaskDraft, runAiTools, undoAiAction } from "@/lib/aiToolRuntime";
+import type { AiToolTrace, ChatMessage, ChatPending, ChatReply, ChatUndo, ScheduleLesson, TaskDraft } from "@/lib/aiTypes";
+import { nextWeekKeys, remainingWeekKeys, todayKey } from "@/lib/dates";
+import { durationBetween, minutesOf } from "@/lib/timeBlock";
 import { liveProgress, useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
+import { ChatTimePicker } from "./ChatTimePicker";
 import { LessonEditor } from "./LessonEditor";
 
 type Bubble = ChatMessage & { links?: ChatReply["links"]; undos?: ChatUndo[] };
@@ -65,6 +77,9 @@ function FriendChat({
   const creature = useActiveCreature();
   const router = useRouter();
   const goals = useApp((s) => s.goals);
+  const milestones = useApp((s) => s.milestones);
+  const scores = useApp((s) => s.scores);
+  const aiMemory = useApp((s) => s.aiMemory ?? []);
   const threads = useApp((s) => s.chatThreads ?? []);
   const addRecurringSessions = useApp((s) => s.addRecurringSessions);
   const saveChatThread = useApp((s) => s.saveChatThread);
@@ -78,6 +93,7 @@ function FriendChat({
   const [err, setErr] = useState("");
   const [msgs, setMsgs] = useState<Bubble[]>([]);
   const [lessons, setLessons] = useState<ScheduleLesson[] | null>(null);
+  const [pending, setPending] = useState<ChatPending | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
@@ -101,7 +117,7 @@ function FriendChat({
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [msgs, busy, file, lessons]);
+  }, [msgs, busy, file, lessons, pending]);
 
   useEffect(() => {
     if (skipSave.current) {
@@ -157,8 +173,14 @@ function FriendChat({
     tasks: allTasks,
     busy: busySlots,
     goals,
+    milestones,
+    scores,
+    memory: aiMemory.filter((n) => n.userId === user.id).map((n) => n.text),
     hasAttachedFile: Boolean(file),
   });
+  const insight = insightReady();
+  snapshot.insightEnough = insight.enough;
+  snapshot.bestHourWindow = insight.window;
   const mine = threads
     .filter((x) => x.userId === user.id)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -176,13 +198,108 @@ function FriendChat({
     setMsgs([]);
     setShowHistory(false);
     setLessons(null);
+    setPending(null);
     setErr("");
+  }
+
+  function pushModel(text: string, extra?: { links?: ChatReply["links"]; undos?: ChatUndo[] }) {
+    setMsgs((cur) => [...cur, { role: "model", text, links: extra?.links, undos: extra?.undos }]);
+  }
+
+  function finishHours(
+    title: string,
+    hours: number,
+    goalId: string | null | undefined,
+    week: "this" | "next",
+    preferStartMin?: number | null,
+    onlyDates?: string[],
+  ) {
+    const { today } = planningNow();
+    const days = onlyDates?.length
+      ? onlyDates.filter((d) => week === "next" || d >= today)
+      : week === "next"
+        ? nextWeekKeys(today)
+        : remainingWeekKeys(today);
+    const placed = applyScheduleHours({ title, hours, goalId, week: days, preferStartMin });
+    if (placed.undo) {
+      pushModel(placed.undo.label, { undos: [placed.undo] });
+    }
+    if (placed.weekFull) {
+      setPending({
+        kind: "nextWeek",
+        title,
+        hours: placed.leftoverHours || hours,
+        leftoverHours: placed.leftoverHours || hours,
+        goalId,
+      });
+      return;
+    }
+    setPending(null);
+    if (!placed.added) setPending({ kind: "nextWeek", title, hours, leftoverHours: hours, goalId });
+  }
+
+  function onConsultAuto(card: Extract<ChatPending, { kind: "consultHours" } | { kind: "consultTime" }>) {
+    const prefer = insightReady().startMin ?? 19 * 60;
+    if (card.kind === "consultHours") {
+      finishHours(card.title, card.hours, card.goalId, card.week, prefer);
+      return;
+    }
+    const time = `${String(Math.floor(prefer / 60)).padStart(2, "0")}:${String(prefer % 60).padStart(2, "0")}`;
+    setPending({ kind: "confirmTask", draft: { ...card.draft, time } });
+  }
+
+  function confirmDraft(draft: TaskDraft) {
+    const made = applyTaskDraft(draft);
+    setPending(null);
+    if (made.undo) pushModel(made.undo.label, { undos: [made.undo] });
+    else setErr(t("ai.noneAdded"));
   }
 
   async function send() {
     const next = text.trim();
     if (busy || !user || !creature) return;
     if (!next && !file) return;
+
+    if (pending && next) {
+      if (pending.kind === "consultHours" || pending.kind === "consultTime") {
+        const choice = consultChoice(next);
+        if (choice === "auto") {
+          setMsgs((cur) => [...cur, { role: "user", text: next }]);
+          setText("");
+          onConsultAuto(pending);
+          return;
+        }
+        if (choice === "pick") {
+          setMsgs((cur) => [...cur, { role: "user", text: next }]);
+          setText("");
+          setPending(
+            pending.kind === "consultHours"
+              ? { kind: "pickSlots", title: pending.title, hours: pending.hours, goalId: pending.goalId, week: pending.week, mode: "hours" }
+              : { kind: "pickSlots", title: pending.draft.title, draft: pending.draft, week: "this", mode: "task" },
+          );
+          return;
+        }
+      }
+      if (pending.kind === "confirmTask" || pending.kind === "nextWeek") {
+        const yn = yesNo(next);
+        if (yn === "yes") {
+          setMsgs((cur) => [...cur, { role: "user", text: next }]);
+          setText("");
+          if (pending.kind === "confirmTask") confirmDraft(pending.draft);
+          else finishHours(pending.title, pending.hours, pending.goalId, "next", insightReady().startMin);
+          return;
+        }
+        if (yn === "no") {
+          setMsgs((cur) => [...cur, { role: "user", text: next }]);
+          setText("");
+          setPending(null);
+          pushModel(t("ai.undone"));
+          return;
+        }
+      }
+      setPending(null);
+    }
+
     const attached = file;
     setText("");
     setErr("");
@@ -223,6 +340,7 @@ function FriendChat({
     let usedTools = false;
     let last: ChatReply | null = null;
     let pendingHref: string | null = null;
+    let didDefer = false;
 
     for (let i = 0; i < 4; i++) {
       if (!result.ok) {
@@ -250,21 +368,35 @@ function FriendChat({
       };
       if (!last.toolCalls.length) break;
       usedTools = true;
-      const ran = runAiTools(last.toolCalls, {
+      const gated = deferToolCalls(last.toolCalls, next);
+      if (gated.pending) {
+        setPending(gated.pending);
+        didDefer = true;
+      }
+      const ran = runAiTools(gated.pass, {
         navigate: (href) => {
           pendingHref = href;
         },
         hasFile: Boolean(attached),
       });
       undos.push(...ran.undos);
+      for (const row of ran.results) {
+        const href = String(row.data.href ?? "");
+        const label = String(row.data.label ?? t("ai.go"));
+        if (href && !last.links.some((l) => l.href === href)) {
+          last.links.push({ href, label });
+        }
+      }
 
-      const traces: AiToolTrace[] = last.toolCalls.map((call, idx) => {
-        const row = ran.results[idx] ?? {
-          id: call.id,
-          name: call.name,
-          ok: false,
-          data: { error: "missing" },
-        };
+      const traces: AiToolTrace[] = last.toolCalls.map((call) => {
+        const row =
+          ran.results.find((r) => r.id === call.id) ??
+          gated.deferred.find((r) => r.id === call.id) ?? {
+            id: call.id,
+            name: call.name,
+            ok: false,
+            data: { error: "missing" },
+          };
         return { call, result: row };
       });
 
@@ -290,7 +422,11 @@ function FriendChat({
       result = await chatContinue(history, { ...snap, hasAttachedFile: Boolean(attached) }, traces);
     }
 
-    if (!usedTools && last) {
+    if (didDefer && last && /ekledim|yazdım|yazdim|koydum|eklendi/i.test(last.reply)) {
+      last = { ...last, reply: "" };
+    }
+
+    if (!usedTools && last && userGaveFullTaskSpec(next)) {
       const adds = last.calendarAdds.length ? last.calendarAdds : planFromAccount(next, snap);
       undos.push(...applyChatCalendarAdds(adds, today));
     }
@@ -299,7 +435,10 @@ function FriendChat({
     if (attached) clearFile();
     if (!last) return;
     const links = [...last.links];
-    if (pendingHref && undos.length && !links.some((l) => l.href === pendingHref)) {
+    for (const extra of gitLinksFromReply(last.reply)) {
+      if (!links.some((l) => l.href === extra.href)) links.push(extra);
+    }
+    if (pendingHref && !links.some((l) => l.href === pendingHref)) {
       links.push({ label: t("ai.go"), href: pendingHref });
     }
     const reply = last.reply.trim() || (undos.length || links.length ? t("ai.done") : "");
@@ -309,6 +448,7 @@ function FriendChat({
       { role: "model", text: reply, links, undos },
     ]);
     if (pendingHref && undos.length === 0) router.push(pendingHref);
+    void maybeDistillMemory(snapshot);
   }
 
   function onFile(next: File | undefined) {
@@ -486,6 +626,129 @@ function FriendChat({
                 ) : null}
               </div>
             ))}
+            {pending ? (
+              <div className="rounded-2xl border border-white/[0.08] bg-raised p-3 space-y-3">
+                {pending.kind === "consultHours" || pending.kind === "consultTime" ? (
+                  <>
+                    <p className="text-sm">
+                      {t("ai.consultHours", { window: insight.window ?? "" })}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" onClick={() => onConsultAuto(pending)}>
+                        {t("ai.useInsight")}
+                      </Button>
+                      <Button
+                        type="button"
+                        tone="ghost"
+                        onClick={() =>
+                          setPending(
+                            pending.kind === "consultHours"
+                              ? {
+                                  kind: "pickSlots",
+                                  title: pending.title,
+                                  hours: pending.hours,
+                                  goalId: pending.goalId,
+                                  week: pending.week,
+                                  mode: "hours",
+                                }
+                              : {
+                                  kind: "pickSlots",
+                                  title: pending.draft.title,
+                                  draft: pending.draft,
+                                  week: "this",
+                                  mode: "task",
+                                },
+                          )
+                        }
+                      >
+                        {t("ai.pickSlots")}
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+                {pending.kind === "pickSlots" ? (
+                  <>
+                    {!insight.window ? <p className="text-sm">{t("ai.consultNoData")}</p> : null}
+                    <ChatTimePicker
+                      days={
+                        pending.week === "next" ? nextWeekKeys(today) : remainingWeekKeys(today)
+                      }
+                      today={today}
+                      nowMin={planningNow().nowMin}
+                      multi={pending.mode === "hours"}
+                      onSubmit={(dates, time) => {
+                        if (pending.mode === "hours") {
+                          finishHours(
+                            pending.title,
+                            pending.hours ?? 1,
+                            pending.goalId,
+                            pending.week,
+                            minutesOf(time),
+                            dates,
+                          );
+                          return;
+                        }
+                        const draft = pending.draft ?? {
+                          title: pending.title,
+                          date: dates[0] ?? today,
+                          time,
+                        };
+                        setPending({
+                          kind: "confirmTask",
+                          draft: { ...draft, date: dates[0] ?? draft.date, time },
+                        });
+                      }}
+                    />
+                  </>
+                ) : null}
+                {pending.kind === "confirmTask" ? (
+                  <>
+                    <p className="text-sm">
+                      {t("ai.confirmTask", {
+                        title: pending.draft.title,
+                        when: taskWhenLabel(pending.draft.date, pending.draft.time),
+                      })}
+                    </p>
+                    <Button type="button" onClick={() => confirmDraft(pending.draft)}>
+                      {t("ai.confirmYes")}
+                    </Button>
+                    <button
+                      type="button"
+                      className="w-full text-center text-[11px] text-faint"
+                      onClick={() => setPending(null)}
+                    >
+                      {t("ai.reject")}
+                    </button>
+                  </>
+                ) : null}
+                {pending.kind === "nextWeek" ? (
+                  <>
+                    <p className="text-sm">{t("ai.weekFull")}</p>
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        finishHours(
+                          pending.title,
+                          pending.hours,
+                          pending.goalId,
+                          "next",
+                          insight.startMin,
+                        )
+                      }
+                    >
+                      {t("ai.nextWeekYes")}
+                    </Button>
+                    <button
+                      type="button"
+                      className="w-full text-center text-[11px] text-faint"
+                      onClick={() => setPending(null)}
+                    >
+                      {t("ai.reject")}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
             {lessons?.length ? (
               <div className="rounded-2xl border border-white/[0.08] bg-raised p-3">
                 <p className="mb-2 text-xs text-muted">{t("ai.preview")}</p>
@@ -573,8 +836,13 @@ function FriendChat({
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
-          <Button type="submit" disabled={busy || (!text.trim() && !file)}>
-            {t("common.continue")}
+          <Button
+            type="submit"
+            className="px-3"
+            disabled={busy || (!text.trim() && !file)}
+            aria-label={t("ai.send")}
+          >
+            <Send size={16} />
           </Button>
         </form>
       </section>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { chat, chatContinue, parseSchedule, planGoal, suggestStudyHours } from "@/lib/aiClient";
+import { chat, chatContinue, distillMemory, parseSchedule, planGoal, suggestStudyHours } from "@/lib/aiClient";
 import type {
   AiAction,
   AiToolTrace,
@@ -52,6 +52,15 @@ export async function POST(req: Request) {
     if (action === "chat") {
       return NextResponse.json(
         await chat((body.messages as ChatMessage[]) ?? [], body.snapshot as CreatureSnapshot),
+      );
+    }
+    if (action === "distillMemory") {
+      return NextResponse.json(
+        await distillMemory(
+          (body.messages as ChatMessage[]) ?? [],
+          (body.existing as string[]) ?? [],
+          body.snapshot as CreatureSnapshot,
+        ),
       );
     }
     if (action === "chatContinue") {

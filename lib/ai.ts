@@ -114,6 +114,14 @@ export async function chat(
   return post({ action: "chat", messages, snapshot });
 }
 
+export async function distillMemory(
+  messages: ChatMessage[],
+  existing: string[],
+  snapshot: CreatureSnapshot,
+): Promise<AiResult<{ notes: { text: string; source: "said" | "observed" }[] }>> {
+  return post({ action: "distillMemory", messages, existing, snapshot });
+}
+
 export async function chatContinue(
   messages: ChatMessage[],
   snapshot: CreatureSnapshot,

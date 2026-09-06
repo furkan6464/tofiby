@@ -22,6 +22,7 @@ import {
   canMutateTaskDate,
   detectTimezone,
   diffDays,
+  minutesInZone,
   todayKey,
   weekdayOf,
 } from "./dates";
@@ -31,6 +32,7 @@ import { t } from "./i18n";
 import { celebrate } from "./confetti";
 import type {
   BusySlot,
+  AiMemoryNote,
   ChatThread,
   ChatThreadMessage,
   Creature,
@@ -67,6 +69,7 @@ import {
   cloudLookupFriend,
   cloudMarkNoticesRead,
   cloudPublishCreature,
+  cloudPullMemory,
   cloudPullSocial,
   cloudDeleteAccount,
   cloudSession,
@@ -119,6 +122,8 @@ interface AppState {
   taskCompanions: TaskCompanion[];
   achievements: UserAchievement[];
   chatThreads: ChatThread[];
+  aiMemory: AiMemoryNote[];
+  aiMemoryCursor: Record<string, { seen: number; at: string }>;
   focusRuns: Record<string, FocusRun>;
   toasts: Toast[];
   widgetAnim: "idle" | "bounce" | "happy" | "sleepy" | "sick" | "worried" | "yawn";
@@ -177,7 +182,8 @@ interface AppState {
     hours: number,
     week: string[],
     goalId?: string | null,
-  ) => { added: number; taskIds: string[] };
+    preferStartMin?: number | null,
+  ) => { added: number; taskIds: string[]; minutesPlaced: number; minutesNeeded: number };
   removeTasks: (ids: string[]) => void;
   removeGoal: (id: string) => void;
   flushOffline: () => void;
@@ -217,6 +223,10 @@ interface AppState {
   cancelCompanion: (id: string) => void;
   saveChatThread: (input: { id?: string | null; messages: ChatThreadMessage[] }) => string;
   deleteChatThread: (id: string) => void;
+  addMemoryNotes: (notes: Omit<AiMemoryNote, "id" | "userId" | "createdAt">[]) => AiMemoryNote[];
+  removeMemory: (id: string) => void;
+  clearMemory: () => void;
+  markMemoryDistilled: (seen: number) => void;
   saveFocusRun: (key: string, run: FocusRun) => void;
   clearFocusRun: (key: string) => void;
 }
@@ -347,6 +357,8 @@ export const useApp = create<AppState>()(
       taskCompanions: [],
       achievements: [],
       chatThreads: [],
+      aiMemory: [],
+      aiMemoryCursor: {},
       focusRuns: {},
       toasts: [],
       widgetAnim: "idle",
@@ -466,6 +478,13 @@ export const useApp = create<AppState>()(
           });
         }
         await get().syncCloudSocial();
+        const remoteMem = await cloudPullMemory(session.userId);
+        if (remoteMem?.length) {
+          const local = get().aiMemory ?? [];
+          const have = new Set(local.filter((n) => n.userId === session.userId).map((n) => n.id));
+          const extra = remoteMem.filter((n) => n.text && !have.has(n.id));
+          if (extra.length) set({ aiMemory: [...local, ...extra] });
+        }
         const mine = get().creatures.find((c) => c.ownerId === session.userId && c.status === "active");
         if (mine) await cloudPublishCreature(mine);
       },
@@ -735,9 +754,11 @@ export const useApp = create<AppState>()(
           ),
         });
       },
-      planHours: (title, hours, week, goalId) => {
+      planHours: (title, hours, week, goalId, preferStartMin) => {
         const user = currentUser(get());
-        if (!user) return { added: 0, taskIds: [] };
+        const minutesNeeded = Math.max(0, hours) * 60;
+        if (!user) return { added: 0, taskIds: [], minutesPlaced: 0, minutesNeeded };
+        const today = todayKey(user.timezone);
         const slots = scheduleHours({
           hours,
           title,
@@ -745,6 +766,9 @@ export const useApp = create<AppState>()(
           tasks: get().tasks,
           busy: get().busySlots,
           userId: user.id,
+          today,
+          nowMin: minutesInZone(user.timezone),
+          preferStartMin: preferStartMin ?? undefined,
         });
         const extra = slots.map((s) =>
           hydrateTask({
@@ -757,9 +781,10 @@ export const useApp = create<AppState>()(
             estimatedDurationMinutes: s.minutes,
           }),
         );
-        if (extra.length === 0) return { added: 0, taskIds: [] };
+        const minutesPlaced = slots.reduce((s, x) => s + x.minutes, 0);
+        if (extra.length === 0) return { added: 0, taskIds: [], minutesPlaced: 0, minutesNeeded };
         set({ tasks: [...get().tasks, ...extra] });
-        return { added: extra.length, taskIds: extra.map((x) => x.id) };
+        return { added: extra.length, taskIds: extra.map((x) => x.id), minutesPlaced, minutesNeeded };
       },
       removeTasks: (ids) => {
         const drop = new Set(ids);
@@ -802,6 +827,7 @@ export const useApp = create<AppState>()(
           ),
           achievements: get().achievements.filter((a) => a.userId !== user.id),
           chatThreads: (get().chatThreads ?? []).filter((c) => c.userId !== user.id),
+          aiMemory: (get().aiMemory ?? []).filter((n) => n.userId !== user.id),
           offlineOps: [],
         });
         return { ok: true };
@@ -1631,6 +1657,53 @@ export const useApp = create<AppState>()(
       deleteChatThread: (id) => {
         set({ chatThreads: (get().chatThreads ?? []).filter((c) => c.id !== id) });
       },
+      addMemoryNotes: (notes) => {
+        const user = currentUser(get());
+        if (!user || notes.length === 0) return [];
+        const now = new Date().toISOString();
+        const have = new Set(
+          (get().aiMemory ?? [])
+            .filter((n) => n.userId === user.id)
+            .map((n) => n.text.toLocaleLowerCase("tr").replace(/\s+/g, " ").trim()),
+        );
+        const extra: AiMemoryNote[] = [];
+        for (const note of notes) {
+          const text = note.text.replace(/\s+/g, " ").trim();
+          const key = text.toLocaleLowerCase("tr");
+          if (!text || have.has(key)) continue;
+          have.add(key);
+          extra.push({
+            id: uid(),
+            userId: user.id,
+            text,
+            source: note.source === "observed" ? "observed" : "said",
+            createdAt: now,
+          });
+        }
+        if (extra.length === 0) return [];
+        const mine = [...extra, ...(get().aiMemory ?? []).filter((n) => n.userId === user.id)].slice(0, 40);
+        const others = (get().aiMemory ?? []).filter((n) => n.userId !== user.id);
+        set({ aiMemory: [...others, ...mine] });
+        return extra;
+      },
+      removeMemory: (id) => {
+        set({ aiMemory: (get().aiMemory ?? []).filter((n) => n.id !== id) });
+      },
+      clearMemory: () => {
+        const user = currentUser(get());
+        if (!user) return;
+        set({ aiMemory: (get().aiMemory ?? []).filter((n) => n.userId !== user.id) });
+      },
+      markMemoryDistilled: (seen) => {
+        const user = currentUser(get());
+        if (!user) return;
+        set({
+          aiMemoryCursor: {
+            ...(get().aiMemoryCursor ?? {}),
+            [user.id]: { seen, at: new Date().toISOString() },
+          },
+        });
+      },
       saveFocusRun: (key, run) => {
         set({ focusRuns: { ...(get().focusRuns ?? {}), [key]: run } });
       },
@@ -1644,7 +1717,7 @@ export const useApp = create<AppState>()(
       name: "tofiby-db",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 8,
+      version: 9,
       migrate: (persisted) => {
         try {
           const p = persisted as {
@@ -1672,6 +1745,8 @@ export const useApp = create<AppState>()(
             taskCompanions: (p.taskCompanions as TaskCompanion[] | undefined) ?? [],
             achievements: p.achievements ?? [],
             chatThreads: (p.chatThreads as ChatThread[] | undefined) ?? [],
+            aiMemory: (p.aiMemory as AiMemoryNote[] | undefined) ?? [],
+            aiMemoryCursor: (p.aiMemoryCursor as Record<string, { seen: number; at: string }> | undefined) ?? {},
             focusRuns: (p.focusRuns as Record<string, FocusRun> | undefined) ?? {},
             scores: p.scores ?? [],
             friendships: p.friendships ?? [],
@@ -1702,6 +1777,8 @@ export const useApp = create<AppState>()(
         taskCompanions: s.taskCompanions,
         achievements: s.achievements,
         chatThreads: s.chatThreads,
+        aiMemory: s.aiMemory,
+        aiMemoryCursor: s.aiMemoryCursor,
         focusRuns: s.focusRuns,
       }),
     },

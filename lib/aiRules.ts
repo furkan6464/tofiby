@@ -17,6 +17,16 @@ export function gameRulesForAi(): string {
   ].join("\n");
 }
 
+export function coachingRulesForAi(): string {
+  return [
+    "Koçluk — HER tavsiye snapshot'taki gerçek sayılara ve memory listesine dayansın.",
+    "Boş motivasyon yok. Somut ol: seri, GP, aşama, hedef pct, dcs7.",
+    "memory yalnızca kullanıcının söylediği veya veriden net gözlenen gerçeklerdir. Yeni varsayım uydurma.",
+    "Ton sıcak ve teşvik edici. Suçlama yok. Seri kırıldıysa: geçmiş silinmedi, hız yavaşladı.",
+    "snapshot'ta olmayan sayı/saat/alışkanlık uydurma.",
+  ].join("\n");
+}
+
 export const APP_ROUTES = [
   { href: "/anasayfa", label: "Bugün", hint: "bugünün görevleri, seri, hızlı ekleme" },
   { href: "/gorevler", label: "Görevler", hint: "tüm görev listesi" },
@@ -35,5 +45,33 @@ export function routeMapForAi(): string {
     "Uygulama sayfaları — yönlendirme için SADECE bu href değerlerini kullan:",
     ...APP_ROUTES.map((r) => `- ${r.href} — ${r.label}: ${r.hint}`),
     "Kullanıcı bir yeri sorarsa navigateTo aracını çağır veya links dizisine href koy.",
+    "Yapamadığın her eylemde mutlaka navigateTo çağır; düz metinde sayfa adı bırakma.",
   ].join("\n");
+}
+
+export const BLOCKED_PAGE: Record<string, { href: string; label: string }> = {
+  addFriend: { href: "/topluluk", label: "Bağ" },
+  acceptFriend: { href: "/topluluk", label: "Bağ" },
+  poke: { href: "/topluluk", label: "Bağ" },
+  bond: { href: "/topluluk", label: "Bağ" },
+  deleteAccount: { href: "/ayarlar", label: "Ayarlar" },
+  deleteUser: { href: "/ayarlar", label: "Ayarlar" },
+  pay: { href: "/ayarlar", label: "Ayarlar" },
+};
+
+export function gitLinksFromReply(reply: string): { label: string; href: string }[] {
+  if (!/yapamam|yapılmıyor|yapılamaz|sohbetten|kendin|gitmen|sayfadan|ben açamam|elle |manuel|buradan olmaz/i.test(reply)) {
+    return [];
+  }
+  const hits: { label: string; href: string }[] = [];
+  const add = (href: string, label: string) => {
+    if (!hits.some((x) => x.href === href)) hits.push({ label, href });
+  };
+  if (/arkadaş|bağ|dürt|istek/i.test(reply)) add("/topluluk", "Bağ");
+  if (/ödeme|kart|abone|hesap sil|veri sil|ayar/i.test(reply)) add("/ayarlar", "Ayarlar");
+  if (/hedef/i.test(reply)) add("/hedeflerim", "Hedefler");
+  if (/takvim|program/i.test(reply)) add("/takvim", "Takvim");
+  if (/analiz|istatistik/i.test(reply)) add("/analiz", "Analiz");
+  if (hits.length === 0 && /sayfa/i.test(reply)) add("/anasayfa", "Bugün");
+  return hits;
 }

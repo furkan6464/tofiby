@@ -141,6 +141,28 @@ export function hourInZone(timeZone: string, now = new Date()): number {
   return zonedParts(now, timeZone).hour;
 }
 
+export function minutesInZone(timeZone: string, now = new Date()): number {
+  const p = zonedParts(now, timeZone);
+  return p.hour * 60 + p.minute;
+}
+
+export function remainingWeekKeys(today: string): string[] {
+  return weekKeys(today).filter((d) => d >= today);
+}
+
+export function nextWeekKeys(today: string): string[] {
+  return weekKeys(addDays(weekKeys(today)[0], 7));
+}
+
+export function dayMonth(dateKey: string, locale = "tr-TR"): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+}
+
 export function weekKeys(dateKey: string): string[] {
   const wd = weekdayOf(dateKey);
   const mondayOffset = wd === 0 ? -6 : 1 - wd;

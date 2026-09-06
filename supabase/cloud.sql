@@ -104,3 +104,15 @@ $$;
 
 revoke all on function public.delete_own_account() from public;
 grant execute on function public.delete_own_account() to authenticated;
+
+create table if not exists public.user_ai_memory (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  text text not null,
+  source text not null default 'said' check (source in ('said', 'observed')),
+  created_at timestamptz not null default now()
+);
+alter table public.user_ai_memory enable row level security;
+drop policy if exists "own ai memory" on public.user_ai_memory;
+create policy "own ai memory" on public.user_ai_memory
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());

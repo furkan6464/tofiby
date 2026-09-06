@@ -305,6 +305,14 @@ export interface ChatThread {
   messages: ChatThreadMessage[];
 }
 
+export interface AiMemoryNote {
+  id: string;
+  userId: string;
+  text: string;
+  source: "said" | "observed";
+  createdAt: string;
+}
+
 export type AnimationState =
   | "idle"
   | "blink"

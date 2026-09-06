@@ -1,4 +1,4 @@
-import { APP_ROUTES, gameRulesForAi, routeMapForAi } from "./aiRules";
+import { APP_ROUTES, coachingRulesForAi, gameRulesForAi, routeMapForAi } from "./aiRules";
 import { AI_TOOL_DECLARATIONS, groqToolDefs, normalizeToolCalls, toolRulesForAi } from "./aiTools";
 import type {
   AiFail,
@@ -411,6 +411,67 @@ const CHAT_SCHEMA: JsonSchema = {
   required: ["reply"],
 };
 
+const MEMORY_SCHEMA: JsonSchema = {
+  type: "OBJECT",
+  properties: {
+    notes: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          text: { type: "STRING" },
+          source: { type: "STRING" },
+        },
+        required: ["text", "source"],
+      },
+    },
+  },
+  required: ["notes"],
+};
+
+export async function distillMemory(
+  messages: ChatMessage[],
+  existing: string[],
+  snapshot: CreatureSnapshot,
+): Promise<AiResult<{ notes: { text: string; source: "said" | "observed" }[] }>> {
+  return completeJson({
+    system: [
+      "Konuşmadan kalıcı hafıza notları çıkar. Kısa maddeler, Türkçe.",
+      "SADECE kullanıcının açıkça söylediği veya snapshot verilerinden net gözlenen gerçekler.",
+      "Varsayım, tahmin, yorum, kişilik analizi YASAK. Şüphen varsa not yazma.",
+      "Zaten listedeki notları tekrarlama. Yeni bir şey yoksa boş dizi dön.",
+      `Mevcut notlar: ${JSON.stringify(existing)}`,
+      `Gözlem için veri (sayılar gerçek; yorum katma): ${JSON.stringify({
+        preferredWindow: snapshot.preferredWindow,
+        restDay: snapshot.restDay,
+        dcs7: snapshot.dcs7,
+        goals: snapshot.goals,
+        streak: snapshot.streak,
+        memory: snapshot.memory,
+      })}`,
+    ].join("\n"),
+    messages: messages.slice(-40),
+    schema: MEMORY_SCHEMA,
+    schemaHint: '{ "notes": [{ "text": "gece geç saatlerde çalışmayı tercih ediyor", "source": "said" }] }',
+    allowGroq: true,
+    temperature: 0.1,
+    parse: (raw) => {
+      const r = raw as Record<string, unknown>;
+      if (!Array.isArray(r.notes)) return { notes: [] };
+      const notes = r.notes
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          const text = String(row.text ?? "").replace(/\s+/g, " ").trim();
+          const source = String(row.source ?? "") === "observed" ? "observed" : "said";
+          return { text, source } as { text: string; source: "said" | "observed" };
+        })
+        .filter((n) => n.text.length >= 8 && n.text.length <= 160)
+        .slice(0, 8);
+      return { notes };
+    },
+  });
+}
+
 export async function parseSchedule(
   file: { mime: string; data: string },
   note = "",
@@ -545,15 +606,20 @@ export async function planGoal(data: GoalPlanInput): Promise<AiResult<GoalPlanDr
 }
 
 function chatSystem(snapshot: CreatureSnapshot) {
+  const memory = (snapshot.memory ?? []).filter(Boolean);
   return [
     "Tofiby adlı bir planlama uygulamasının dostusun. Kısa, sıcak, Türkçe konuş.",
     gameRulesForAi(),
+    coachingRulesForAi(),
     routeMapForAi(),
     toolRulesForAi(),
     "Büyüme tavsiyesinde yalnızca yukarıdaki gerçek formülleri ve kullanıcının güncel sayılarını kullan.",
     "Takvim belleği snapshot.week'tedir. SADECE onu kullan. Okul/ders programı uydurma.",
     "calendarEmpty true ise program sorma. preferredWindow ve free boşluklardan saat seç.",
     "Çalışma koyarken busy ile çakışma. Çakışırsa uyar ve en yakın free aralığı kullan.",
+    memory.length
+      ? `Kalıcı hafıza (yalnızca doğrulanmış notlar, varsayım ekleme):\n${memory.map((n) => `- ${n}`).join("\n")}`
+      : "Kalıcı hafıza boş. Kullanıcı hakkında tahmin yazma.",
     "Kullanıcının güncel durumu:",
     JSON.stringify(snapshot),
   ].join("\n\n");
@@ -701,7 +767,7 @@ async function chatTurn(
   traces?: AiToolTrace[],
 ): Promise<AiResult<ChatReply>> {
   const system = chatSystem(snapshot);
-  const recent = messages.slice(-16);
+  const recent = messages.slice(-20);
   const gemini = await geminiToolTurn({ system, messages: recent, traces });
   if (gemini.status === 429) return fail("rate_limited");
   if (gemini.turn && (gemini.turn.reply || gemini.turn.toolCalls.length)) {

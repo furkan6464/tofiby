@@ -1,8 +1,8 @@
-import { collectBusy, findFreeSlots } from "./plan";
-import { addDays, todayKey, weekdayOf } from "./dates";
+import { collectBusy, findFreeSlots, goalCardProgress } from "./plan";
+import { addDays, remainingWeekKeys, todayKey, weekdayOf, zonedParts } from "./dates";
 import { minutesOf, timeFromMinutes } from "./timeBlock";
 import type { ChatBusyItem, ChatCalendarAdd, ChatDay, CreatureSnapshot } from "./aiTypes";
-import type { BusySlot, DayPart, Goal, Task } from "./types";
+import type { BusySlot, DailyScore, DayPart, Goal, Milestone, Task } from "./types";
 import { calendarAddMinutes, guessCalendarAdds, titleFromChat } from "./aiCalendar";
 
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
@@ -61,10 +61,18 @@ export function buildChatSnapshot(input: {
   tasks: Task[];
   busy: BusySlot[];
   goals: Goal[];
+  milestones?: Milestone[];
+  scores?: DailyScore[];
+  memory?: string[];
   hasAttachedFile?: boolean;
 }): CreatureSnapshot {
   const today = todayKey(input.timezone);
   const week = chatWeek(input.userId, input.timezone, input.tasks, input.busy);
+  const dcs7 = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i - 6);
+    const score = (input.scores ?? []).find((s) => s.userId === input.userId && s.date === date);
+    return { date, dcs: score?.dcs ?? null };
+  });
   return {
     name: input.name,
     stage: input.stage,
@@ -83,13 +91,27 @@ export function buildChatSnapshot(input: {
     week,
     goals: input.goals
       .filter((g) => g.userId === input.userId && g.status === "active")
-      .map((g) => ({
-        id: g.id,
-        title: g.title,
-        weeklyFrequency: g.weeklyFrequency,
-        dailyMins: g.dailyDurationMinutes,
-      })),
+      .map((g) => {
+        const card = goalCardProgress({
+          goal: g,
+          milestones: input.milestones ?? [],
+          tasks: input.tasks,
+          today,
+        });
+        return {
+          id: g.id,
+          title: g.title,
+          weeklyFrequency: g.weeklyFrequency,
+          dailyMins: g.dailyDurationMinutes,
+          pct: card.pct,
+          next: card.nextTitle,
+        };
+      }),
+    dcs7,
+    memory: (input.memory ?? []).slice(0, 24),
     hasAttachedFile: Boolean(input.hasAttachedFile),
+    now: `${String(zonedParts(new Date(), input.timezone).hour).padStart(2, "0")}:${String(zonedParts(new Date(), input.timezone).minute).padStart(2, "0")}`,
+    remainingWeek: remainingWeekKeys(today),
   };
 }
 
