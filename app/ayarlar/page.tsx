@@ -22,10 +22,9 @@ export default function SettingsPage() {
   const scores = useApp((s) => s.scores);
   const removeMemory = useApp((s) => s.removeMemory);
   const clearMemory = useApp((s) => s.clearMemory);
-  const memory = useApp((s) =>
-    (Array.isArray(s.aiMemory) ? s.aiMemory : []).filter((n) => n.userId === user?.id),
-  );
+  const memoryAll = useApp((s) => s.aiMemory);
   if (!user) return null;
+  const memory = (Array.isArray(memoryAll) ? memoryAll : []).filter((n) => n.userId === user.id);
 
   return (
     <main className="safe-pad mx-auto max-w-xl px-5 py-8">
