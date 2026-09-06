@@ -5,7 +5,7 @@ import Link from "next/link";
 import { t, tList } from "@/lib/i18n";
 import { GOAL_COLORS } from "@/lib/goalColors";
 import { todayKey } from "@/lib/dates";
-import { goalWorkProgress } from "@/lib/plan";
+import { goalCardProgress, isActiveGoal } from "@/lib/plan";
 import { useApp, useSession } from "@/lib/store";
 import type { FrequencyPattern } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -20,8 +20,9 @@ import { ConfirmList } from "@/components/ai/ConfirmList";
 
 export default function GoalsPage() {
   const user = useSession();
-  const goals = useApp((s) => s.goals);
-  const tasks = useApp((s) => s.tasks);
+  const goals = useApp((s) => s.goals) ?? [];
+  const tasks = useApp((s) => s.tasks) ?? [];
+  const milestones = useApp((s) => s.milestones) ?? [];
   const addGoal = useApp((s) => s.addGoal);
   const archiveGoal = useApp((s) => s.archiveGoal);
   const [tab, setTab] = useState<"active" | "archived">("active");
@@ -42,7 +43,10 @@ export default function GoalsPage() {
 
   if (!user) return null;
   const today = todayKey(user.timezone);
-  const mine = goals.filter((g) => g.userId === user.id && g.status === tab);
+  const mine = goals.filter((g) => {
+    if (g.userId !== user.id) return false;
+    return tab === "archived" ? g.status === "archived" : isActiveGoal(g);
+  });
   const weekdays = tList("onboarding.weekdays");
 
   return (
@@ -65,10 +69,21 @@ export default function GoalsPage() {
       </div>
       <div className="mt-6 space-y-4">
         {mine.length === 0 ? (
-          <Card className="p-8 text-center text-muted">{t("goals.empty")}</Card>
+          <Card className="p-10 text-center">
+            <p className="font-display text-2xl">{t("goals.emptyTitle")}</p>
+            <p className="mt-2 text-sm text-muted">{t("goals.empty")}</p>
+            <Button className="mt-5" onClick={() => setOpen(true)}>
+              {t("goals.new")}
+            </Button>
+          </Card>
         ) : (
           mine.map((g) => {
-            const pct = goalWorkProgress(tasks.filter((x) => x.goalId === g.id)).pct;
+            const card = goalCardProgress({
+              goal: g,
+              milestones,
+              tasks,
+              today,
+            });
             return (
               <Card key={g.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -77,15 +92,25 @@ export default function GoalsPage() {
                       {g.title}
                     </Link>
                     <p className="mt-1 text-sm text-faint">
-                      {t("goals.pct", { n: pct })}
+                      {t("goals.pct", { n: card.pct })}
                       {g.targetDate ? ` · ${t("goals.until", { date: g.targetDate })}` : ""}
+                      {card.stones > 0 ? ` · ${t("goals.stoneCount", { n: card.stones })}` : ""}
                     </p>
                   </div>
                   <span className="mt-1 h-3 w-3 rounded-full" style={{ background: g.color }} />
                 </div>
                 <div className="mt-3">
-                  <Progress value={pct} tone="violet" />
+                  <Progress value={card.pct} tone="violet" />
                 </div>
+                {card.nextTitle ? (
+                  <p className="mt-3 text-sm text-muted">
+                    {t("goals.nextStone", { title: card.nextTitle, n: card.nextLeft })}
+                  </p>
+                ) : card.stones === 0 ? (
+                  <p className="mt-3 text-sm text-faint">{t("goals.noStones")}</p>
+                ) : (
+                  <p className="mt-3 text-sm text-mint">{t("goals.allStones")}</p>
+                )}
                 <div className="mt-4 flex gap-4">
                   <Link href={`/hedeflerim/${g.id}`} className="text-sm text-violet">
                     {t("goals.open")}
@@ -168,6 +193,35 @@ export default function GoalsPage() {
               onChange={(e) => setDailyMins(e.target.value)}
             />
           </div>
+          <Button
+            tone="ghost"
+            className="w-full"
+            type="button"
+            disabled={aiBusy || !title.trim()}
+            onClick={() => {
+              requestAiAccess(async () => {
+                setAiBusy(true);
+                setAiErr("");
+                const result = await planGoal({
+                  title: title.trim(),
+                  note: "",
+                  targetDate: targetDate || null,
+                  weeklyFrequency: weeklyFrequency ? Number(weeklyFrequency) : 5,
+                  dailyDurationMinutes: dailyMins ? Number(dailyMins) : 30,
+                  free: weekFreeWindows(user.id, user.timezone, tasks, busySlots),
+                });
+                setAiBusy(false);
+                if (!result.ok) {
+                  setAiErr(aiErrorText(result.error));
+                  return;
+                }
+                setAiPlan(result.data);
+              });
+            }}
+          >
+            {aiBusy ? t("ai.thinking") : t("ai.planWithAi")}
+          </Button>
+          {aiErr ? <p className="text-xs text-pink">{aiErr}</p> : null}
           <label className="block space-y-1.5">
             <span className="text-sm text-muted">{t("onboarding.milestones")}</span>
             <textarea
@@ -230,35 +284,6 @@ export default function GoalsPage() {
               />
             ))}
           </div>
-          <Button
-            tone="ghost"
-            className="w-full"
-            type="button"
-            disabled={aiBusy || !title.trim()}
-            onClick={() => {
-              requestAiAccess(async () => {
-                setAiBusy(true);
-                setAiErr("");
-                const result = await planGoal({
-                  title: title.trim(),
-                  note: "",
-                  targetDate: targetDate || null,
-                  weeklyFrequency: weeklyFrequency ? Number(weeklyFrequency) : 5,
-                  dailyDurationMinutes: dailyMins ? Number(dailyMins) : 30,
-                  free: weekFreeWindows(user.id, user.timezone, tasks, busySlots),
-                });
-                setAiBusy(false);
-                if (!result.ok) {
-                  setAiErr(aiErrorText(result.error));
-                  return;
-                }
-                setAiPlan(result.data);
-              });
-            }}
-          >
-            {aiBusy ? t("ai.thinking") : t("ai.planWithAi")}
-          </Button>
-          {aiErr ? <p className="text-xs text-pink">{aiErr}</p> : null}
           <Button className="w-full" type="submit">
             {t("common.save")}
           </Button>

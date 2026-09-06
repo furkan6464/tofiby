@@ -185,8 +185,8 @@ export function CalendarRail({
       <section className="rounded-2xl border border-white/[0.06] bg-surface p-4">
         <p className="mb-3 text-sm">{t("calendar.breakdown")}</p>
         <div className="space-y-3">
-          {breakdown.length === 0 || totalMin === 0 ? (
-            <p className="text-xs text-faint">{t("common.empty")}</p>
+          {breakdown.length < 2 || totalMin === 0 ? (
+            <p className="text-xs text-faint">{t("calendar.breakdownEmpty")}</p>
           ) : (
             breakdown.map((row) => (
               <div key={row.id}>

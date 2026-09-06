@@ -20,6 +20,85 @@ export function goalProgress(milestones: Milestone[]): number {
   return Math.round((done / total) * 100);
 }
 
+export function milestoneIsDone(stone: Milestone, tasks: Task[]): boolean {
+  if (stone.completedAt) return true;
+  const linked = tasks.filter((t) => t.milestoneId === stone.id && t.status !== "postponed");
+  return linked.length > 0 && linked.every(isTaskDone);
+}
+
+/** Keep milestone checkboxes in sync with their linked tasks. */
+export function syncMilestoneCompletion(milestones: Milestone[], tasks: Task[]): Milestone[] {
+  const now = new Date().toISOString();
+  return milestones.map((m) => {
+    const linked = tasks.filter((t) => t.milestoneId === m.id && t.status !== "postponed");
+    if (linked.length === 0) return m;
+    const allDone = linked.every(isTaskDone);
+    if (allDone && !m.completedAt) return { ...m, completedAt: now };
+    if (!allDone && m.completedAt) return { ...m, completedAt: null };
+    return m;
+  });
+}
+
+export function goalCardProgress(input: {
+  goal: Goal;
+  milestones: Milestone[];
+  tasks: Task[];
+  today: string;
+}): { pct: number; nextTitle: string | null; nextLeft: number; stones: number } {
+  const related = input.tasks.filter((t) => t.goalId === input.goal.id && t.status !== "postponed");
+  const stones = input.milestones
+    .filter((m) => m.goalId === input.goal.id)
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+
+  if (stones.length > 0) {
+    const linkedAny = related.some((t) => t.milestoneId && stones.some((m) => m.id === t.milestoneId));
+    const rows = stones.map((m) => {
+      const linked = related.filter((t) => t.milestoneId === m.id);
+      const done = milestoneIsDone(m, related);
+      return {
+        title: m.title,
+        weight: m.weight,
+        done,
+        left: linked.filter((t) => !isTaskDone(t)).length,
+      };
+    });
+    const next = rows.find((m) => !m.done);
+    if (linkedAny) {
+      const total = rows.reduce((s, m) => s + m.weight, 0);
+      const doneW = rows.filter((m) => m.done).reduce((s, m) => s + m.weight, 0);
+      return {
+        pct: total > 0 ? Math.round((doneW / total) * 100) : 0,
+        nextTitle: next?.title ?? null,
+        nextLeft: next?.left ?? 0,
+        stones: stones.length,
+      };
+    }
+    const due = related.filter((t) => t.date <= input.today);
+    const pool = due.length > 0 ? due : related;
+    const done = pool.filter(isTaskDone).length;
+    return {
+      pct: pool.length ? Math.round((done / pool.length) * 100) : 0,
+      nextTitle: next?.title ?? null,
+      nextLeft: pool.filter((t) => !isTaskDone(t)).length,
+      stones: stones.length,
+    };
+  }
+
+  const due = related.filter((t) => t.date <= input.today);
+  const pool = due.length > 0 ? due : related;
+  const done = pool.filter(isTaskDone).length;
+  return {
+    pct: pool.length ? Math.round((done / pool.length) * 100) : 0,
+    nextTitle: null,
+    nextLeft: pool.filter((t) => !isTaskDone(t)).length,
+    stones: 0,
+  };
+}
+
+export function isActiveGoal(goal: Goal) {
+  return goal.status !== "archived";
+}
+
 export function isTaskDone(task: Task) {
   return task.completed || task.status === "done";
 }
@@ -314,8 +393,14 @@ export function goalAnalytics(input: {
   const remain = input.goal.targetDate
     ? Math.max(0, Math.round((Date.parse(`${input.goal.targetDate}T00:00:00Z`) - Date.parse(`${input.today}T00:00:00Z`)) / 86_400_000))
     : null;
+  const card = goalCardProgress({
+    goal: input.goal,
+    milestones: input.milestones,
+    tasks: input.tasks,
+    today: input.today,
+  });
   return {
-    pct: work.pct,
+    pct: card.pct,
     plannedDays,
     workedDays,
     avgDcs: avg.length ? avg.reduce((a, b) => a + b, 0) / avg.length : 0,

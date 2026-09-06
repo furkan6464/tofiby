@@ -3,18 +3,21 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { friendName, pickDaily, t } from "@/lib/i18n";
-import { GAME_CONFIG } from "@/lib/gameConfig";
 import { prettyDate, weekdayOf, weekKeys } from "@/lib/dates";
 import {
   liveHealth,
-  liveProgress,
   useActiveCreature,
   useApp,
   useSession,
   useTodayBundle,
 } from "@/lib/store";
-import { goalWorkProgress, overloadedWeekdays, remainingToStreak, weeklyReview } from "@/lib/plan";
-import { pickStoryKind } from "@/lib/bond";
+import {
+  goalCardProgress,
+  isActiveGoal,
+  overloadedWeekdays,
+  remainingToStreak,
+  weeklyReview,
+} from "@/lib/plan";
 import { TaskRow } from "@/components/tasks/TaskRow";
 import { openFocus } from "@/components/focus/FocusSession";
 import { Card } from "@/components/ui/Card";
@@ -25,15 +28,16 @@ export default function HomePage() {
   const user = useSession();
   const { tasks, score, date, rest } = useTodayBundle();
   const creature = useActiveCreature();
-  const allGoals = useApp((s) => s.goals);
-  const allTasks = useApp((s) => s.tasks);
+  const allGoals = useApp((s) => s.goals) ?? [];
+  const milestones = useApp((s) => s.milestones) ?? [];
+  const allTasks = useApp((s) => s.tasks) ?? [];
   const scores = useApp((s) => s.scores) ?? [];
   const addTask = useApp((s) => s.addTask);
   const update = useApp((s) => s.updateSettings);
   const [quick, setQuick] = useState("");
 
   const goals = useMemo(
-    () => allGoals.filter((g) => g.userId === user?.id && g.status === "active"),
+    () => allGoals.filter((g) => g.userId === user?.id && isActiveGoal(g)),
     [allGoals, user?.id],
   );
   const activeToday = useMemo(
@@ -69,8 +73,7 @@ export default function HomePage() {
   const health = liveHealth(creature, score?.dcs ?? null);
   const sick = health.health === "sick";
   const fname = friendName(creature?.name);
-  const todayGp = score && !score.finalized ? score.gpEarned : 0;
-  const growth = liveProgress(creature, todayGp);
+  const tipKind = coach.planned === 0 ? "empty" : coach.met ? "met" : "need";
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8">
@@ -150,23 +153,7 @@ export default function HomePage() {
       ) : null}
 
       <section className="mt-8">
-        <div className="flex items-end justify-between gap-3">
-          <h1 className="font-display text-3xl">{t("home.todayTitle")}</h1>
-          {score?.isStreakDay ? (
-            <span className="pixel-num text-[10px] text-mint">{t("enough.met")}</span>
-          ) : null}
-        </div>
-        <p className="mt-3 text-sm text-muted">
-          {coach.planned === 0
-            ? t("home.coachEmpty")
-            : coach.met
-              ? t("home.coachMet", { planned: coach.planned, done: coach.done })
-              : t("home.coach", {
-                  planned: coach.planned,
-                  done: coach.done,
-                  need: coach.remaining,
-                })}
-        </p>
+        <h1 className="font-display text-3xl">{t("home.todayTitle")}</h1>
         <div className="mt-4">
           <div className="mb-1 flex justify-between text-xs text-faint">
             <span>{t("home.todayBar")}</span>
@@ -176,10 +163,16 @@ export default function HomePage() {
           </div>
           <Progress value={pct} />
         </div>
-        <p className="mt-2 text-xs text-faint">
-          {coach.met
-            ? t("home.todayCueMet")
-            : t("home.todayCue", { pct: Math.round(GAME_CONFIG.DCS_STREAK_THRESHOLD * 100) })}
+        <p className="mt-2 text-sm text-muted">
+          {coach.planned === 0
+            ? t("home.coachEmpty")
+            : coach.met
+              ? t("home.todayCueMet")
+              : t("home.coach", {
+                  planned: coach.planned,
+                  done: coach.done,
+                  need: coach.remaining,
+                })}
         </p>
         <div className="mt-4">
           {timed.length === 0 ? (
@@ -219,20 +212,40 @@ export default function HomePage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="font-display text-2xl">{t("home.longGoals")}</h2>
+        <div className="flex items-end justify-between gap-3">
+          <h2 className="font-display text-2xl">{t("home.longGoals")}</h2>
+          <Link href="/hedeflerim" className="text-sm text-violet">
+            {t("goals.open")}
+          </Link>
+        </div>
         <div className="mt-4 space-y-4">
           {goals.length === 0 ? (
-            <p className="text-sm text-muted">{t("goals.empty")}</p>
+            <Card className="p-6">
+              <p className="text-sm text-muted">{t("goals.empty")}</p>
+              <Link href="/hedeflerim" className="mt-3 inline-block">
+                <Button>{t("goals.new")}</Button>
+              </Link>
+            </Card>
           ) : (
             goals.map((g) => {
-              const pctG = goalWorkProgress(allTasks.filter((x) => x.goalId === g.id)).pct;
+              const card = goalCardProgress({
+                goal: g,
+                milestones,
+                tasks: allTasks,
+                today: date,
+              });
               return (
                 <Link key={g.id} href={`/hedeflerim/${g.id}`} className="block">
                   <div className="mb-1 flex justify-between text-sm">
                     <span>{g.title}</span>
-                    <span className="text-faint">{t("goals.pct", { n: pctG })}</span>
+                    <span className="text-faint">{t("goals.pct", { n: card.pct })}</span>
                   </div>
-                  <Progress value={pctG} tone="violet" />
+                  <Progress value={card.pct} tone="violet" />
+                  {card.nextTitle ? (
+                    <p className="mt-1.5 text-xs text-faint">
+                      {t("goals.nextStone", { title: card.nextTitle, n: card.nextLeft })}
+                    </p>
+                  ) : null}
                 </Link>
               );
             })
@@ -241,29 +254,11 @@ export default function HomePage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="font-display text-2xl">{t("home.friendHow")}</h2>
-        <Card className="mt-4 flex items-center justify-between p-4">
-          <div>
-            <p className="font-display text-xl">{fname}</p>
-            <p className="text-xs text-muted">
-              {pickDaily(
-                `story.${pickStoryKind({
-                  taskCount: tasks.length,
-                  dcs: score?.dcs ?? null,
-                  streak: creature?.currentStreak ?? 0,
-                  returned: (creature?.consecutiveZeroDays ?? 0) >= 2 && (score?.dcs ?? 0) > 0,
-                })}`,
-                [user.id, date],
-              )}
-            </p>
-            <p className="mt-2 pixel-num text-[10px] text-pink">
-              {t("widget.streak", { n: creature?.currentStreak ?? 0 })} ·{" "}
-              {Math.round(growth.ratio * 100)}%
-            </p>
-          </div>
-          <Link href="/yaratigim" className="text-sm text-violet">
-            {t("home.seeGrowth")}
-          </Link>
+        <h2 className="font-display text-2xl">{t("home.todayNote")}</h2>
+        <Card className="mt-4 p-5">
+          <p className="text-sm text-muted">
+            {pickDaily(`home.tips.${tipKind}`, [user.id, date])}
+          </p>
         </Card>
       </section>
     </main>

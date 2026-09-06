@@ -2,6 +2,8 @@
 
 import { t } from "@/lib/i18n";
 import type { Task } from "@/lib/types";
+import { overlapColumns } from "@/lib/overlap";
+import { minutesOf } from "@/lib/timeBlock";
 
 const HOUR_PX = 56;
 
@@ -18,6 +20,16 @@ export function DayTimeline({
 }) {
   const timed = tasks.filter((x) => x.time && x.status !== "postponed");
   const loose = tasks.filter((x) => !x.time && x.status !== "postponed");
+  const layout = overlapColumns(
+    timed.map((task) => {
+      const start = minutesOf(task.time ?? "00:00");
+      return {
+        id: task.id,
+        start,
+        end: start + Math.max(15, task.estimatedDurationMinutes ?? 30),
+      };
+    }),
+  );
 
   function timeFromY(y: number) {
     const mins = Math.max(0, Math.min(23 * 60 + 45, Math.round(y / HOUR_PX * 60 / 15) * 15));
@@ -68,9 +80,12 @@ export function DayTimeline({
           </div>
         ))}
         {timed.map((task) => {
-          const [h, m] = (task.time ?? "00:00").split(":").map(Number);
-          const top = (h * 60 + m) / 60 * HOUR_PX;
-          const height = Math.max(28, ((task.estimatedDurationMinutes ?? 30) / 60) * HOUR_PX);
+          const start = minutesOf(task.time ?? "00:00");
+          const dur = Math.max(15, task.estimatedDurationMinutes ?? 30);
+          const top = (start / 60) * HOUR_PX;
+          const height = Math.max(28, (dur / 60) * HOUR_PX);
+          const slot = layout.get(task.id) ?? { col: 0, cols: 1 };
+          const gutter = 64;
           return (
             <button
               key={task.id}
@@ -80,10 +95,15 @@ export function DayTimeline({
                 e.stopPropagation();
               }}
               onClick={() => onOpen(task)}
-              className={`absolute left-16 right-2 overflow-hidden rounded-[6px] px-2 py-1 text-left text-xs ${
+              className={`absolute overflow-hidden rounded-[6px] px-2 py-1 text-left text-xs ${
                 task.completed ? "bg-mint/15 text-faint line-through" : "bg-raised"
               }`}
-              style={{ top, height }}
+              style={{
+                top,
+                height,
+                left: `calc(${gutter}px + ((100% - ${gutter}px) * ${slot.col / slot.cols}) + 4px)`,
+                width: `calc((100% - ${gutter}px) / ${slot.cols} - 8px)`,
+              }}
             >
               <span className="pixel-num text-[9px] text-faint">{task.time}</span> {task.title}
             </button>

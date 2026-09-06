@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { todayKey } from "@/lib/dates";
-import { goalAnalytics } from "@/lib/plan";
+import { goalAnalytics, isTaskDone } from "@/lib/plan";
 import { useApp, useSession } from "@/lib/store";
 import { Card } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/Progress";
@@ -78,16 +78,32 @@ export default function GoalDetailPage() {
       <Card className="mt-4 p-5">
         <h2 className="font-display text-2xl">{t("onboarding.milestones")}</h2>
         <div className="mt-4 space-y-2">
-          {stones.map((m) => (
-            <label key={m.id} className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={Boolean(m.completedAt)}
-                onChange={() => toggleMilestone(m.id)}
-              />
-              <span className={m.completedAt ? "text-faint line-through" : ""}>{m.title}</span>
-            </label>
-          ))}
+          {stones.length === 0 ? (
+            <p className="text-sm text-faint">{t("goals.noStones")}</p>
+          ) : (
+            stones.map((m) => {
+              const linked = tasks.filter((x) => x.milestoneId === m.id && x.status !== "postponed");
+              const left = linked.filter((x) => !isTaskDone(x)).length;
+              return (
+                <label key={m.id} className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean(m.completedAt)}
+                    onChange={() => toggleMilestone(m.id)}
+                  />
+                  <span>
+                    <span className={m.completedAt ? "text-faint line-through" : ""}>{m.title}</span>
+                    {linked.length > 0 ? (
+                      <span className="mt-0.5 block text-xs text-faint">
+                        {t("goals.stoneTasks", { left, total: linked.length })}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              );
+            })
+          )}
         </div>
         <form
           className="mt-4 flex gap-2"

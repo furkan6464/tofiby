@@ -54,7 +54,7 @@ import type {
   UserAchievement,
   UserProfile,
 } from "./types";
-import { scheduleHours } from "./plan";
+import { scheduleHours, syncMilestoneCompletion } from "./plan";
 import { evaluateAchievements, LETTER_MILESTONES } from "./achievements";
 import { isRestWeekday, roomUnlocks } from "./bond";
 import {
@@ -280,9 +280,9 @@ function hydrateGoal(partial: Partial<Goal> & Pick<Goal, "id" | "userId" | "titl
     dailyDurationMinutes: 30,
     frequency: { kind: "daily" },
     color: "#8B5CF6",
-    status: "active",
     createdAt: new Date().toISOString().slice(0, 10),
     ...partial,
+    status: partial.status === "archived" ? "archived" : "active",
   };
 }
 
@@ -560,10 +560,6 @@ export const useApp = create<AppState>()(
         };
         const end =
           draft.targetDate && draft.targetDate < horizon ? draft.targetDate : horizon;
-        const extra = generateTasks(goal, today, end).map((task) => ({
-          ...task,
-          title: draft.taskTitle.trim() || draft.title.trim(),
-        }));
         const stones: Milestone[] = (draft.milestones ?? []).map((m, i) => ({
           id: uid(),
           goalId: goal.id,
@@ -571,6 +567,12 @@ export const useApp = create<AppState>()(
           orderIndex: i,
           weight: m.weight || 1,
           completedAt: null,
+        }));
+        const firstStone = stones[0]?.id ?? null;
+        const extra = generateTasks(goal, today, end).map((task) => ({
+          ...task,
+          title: draft.taskTitle.trim() || draft.title.trim(),
+          milestoneId: firstStone,
         }));
         set({
           goals: [...get().goals, goal],
@@ -873,6 +875,7 @@ export const useApp = create<AppState>()(
         }
         set({
           tasks: nextTasks,
+          milestones: syncMilestoneCompletion(get().milestones, nextTasks),
           scores: upsertDayScore(
             get().scores,
             scoreFromTasks(

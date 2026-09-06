@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { t } from "@/lib/i18n";
 import { todayKey } from "@/lib/dates";
-import { insightBundle } from "@/lib/plan";
+import { insightBundle, isTaskDone } from "@/lib/plan";
 import { consistencyProfile } from "@/lib/bond";
 import { scoreFromTasks } from "@/lib/growthEngine";
 import { useActiveCreature, useApp, useSession } from "@/lib/store";
@@ -68,6 +68,9 @@ export default function AnalyticsPage() {
   }, [user, today, scores, tasks, creature?.currentStreak]);
 
   if (!user || !bundle || !profile) return null;
+  const scoredDays = scores.filter((s) => s.userId === user.id && s.dcs !== null).length;
+  const doneTasks = tasks.filter((x) => x.userId === user.id && isTaskDone(x)).length;
+  const enoughData = scoredDays >= 14 || doneTasks >= 10;
   const delta = bundle.delta >= 0 ? `+${bundle.delta}%` : `${bundle.delta}%`;
   const bestDay = profile.strongest[0]
     ? t(`days.${profile.strongest[0]}`)
@@ -85,35 +88,43 @@ export default function AnalyticsPage() {
           tasks={tasks}
         />
       </Card>
-      <Card className="mt-4 space-y-3 p-5">
-        <p>{t("insights.consistency", { n: bundle.consistencyPct, delta })}</p>
-        <p>{t("insights.avgTasks", { n: bundle.avgTasks.toFixed(1) })}</p>
-        <p>{t("insights.avgDcs", { n: bundle.avgDcs.toFixed(2) })}</p>
-        <p>{t("insights.bestDay", { day: bestDay })}</p>
-        <p>{t("insights.bestHour", { window })}</p>
-        {bundle.strongestGoal ? (
-          <p>{t("insights.strong", { goal: bundle.strongestGoal.title })}</p>
-        ) : null}
-        {bundle.weakestGoal ? (
-          <p>{t("insights.weak", { goal: bundle.weakestGoal.title })}</p>
-        ) : null}
-      </Card>
-      {bundle.routine.dominant ? (
+      {enoughData ? (
+        <>
+          <Card className="mt-4 space-y-3 p-5">
+            <p>{t("insights.consistency", { n: bundle.consistencyPct, delta })}</p>
+            <p>{t("insights.avgTasks", { n: bundle.avgTasks.toFixed(1) })}</p>
+            <p>{t("insights.avgDcs", { n: bundle.avgDcs.toFixed(2) })}</p>
+            <p>{t("insights.bestDay", { day: bestDay })}</p>
+            <p>{t("insights.bestHour", { window })}</p>
+            {bundle.strongestGoal ? (
+              <p>{t("insights.strong", { goal: bundle.strongestGoal.title })}</p>
+            ) : null}
+            {bundle.weakestGoal ? (
+              <p>{t("insights.weak", { goal: bundle.weakestGoal.title })}</p>
+            ) : null}
+          </Card>
+          {bundle.routine.dominant ? (
+            <Card className="mt-4 p-5">
+              <p className="text-sm text-muted">
+                {t(`routine.${bundle.routine.dominant}`, {
+                  pct: Math.round(bundle.routine.pct * 100),
+                })}
+              </p>
+              <Button
+                className="mt-3"
+                tone="ghost"
+                onClick={() => update({ preferredWindow: bundle.routine.dominant })}
+              >
+                {t("routine.apply")}
+              </Button>
+            </Card>
+          ) : null}
+        </>
+      ) : (
         <Card className="mt-4 p-5">
-          <p className="text-sm text-muted">
-            {t(`routine.${bundle.routine.dominant}`, {
-              pct: Math.round(bundle.routine.pct * 100),
-            })}
-          </p>
-          <Button
-            className="mt-3"
-            tone="ghost"
-            onClick={() => update({ preferredWindow: bundle.routine.dominant })}
-          >
-            {t("routine.apply")}
-          </Button>
+          <p className="text-sm text-muted">{t("insights.needMore")}</p>
         </Card>
-      ) : null}
+      )}
     </main>
   );
 }

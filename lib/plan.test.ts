@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   collectBusy,
   findFreeSlots,
+  goalCardProgress,
   goalProgress,
   goalWorkProgress,
   insightBundle,
@@ -14,6 +15,30 @@ import { sampleTask } from "./testTask";
 import type { Milestone } from "./types";
 
 describe("plan", () => {
+  it("moves goal card progress when a due task is done", () => {
+    const goal = {
+      id: "g",
+      userId: "u",
+      title: "İngilizce",
+      note: "",
+      startDate: "2026-09-01",
+      targetDate: null,
+      weeklyFrequency: 5,
+      dailyDurationMinutes: 30,
+      frequency: { kind: "daily" as const },
+      color: "#8B5CF6",
+      status: "active" as const,
+      createdAt: "2026-09-01",
+    };
+    const tasks = [
+      sampleTask({ id: "1", goalId: "g", date: "2026-09-05", weight: 1, completed: true }),
+      sampleTask({ id: "2", goalId: "g", date: "2026-09-06", weight: 1, completed: false }),
+      sampleTask({ id: "3", goalId: "g", date: "2026-10-01", weight: 1, completed: false }),
+    ];
+    const card = goalCardProgress({ goal, milestones: [], tasks, today: "2026-09-06" });
+    assert.equal(card.pct, 50);
+  });
+
   it("computes milestone-weighted goal progress", () => {
     const stones: Milestone[] = [
       { id: "1", goalId: "g", title: "A1", orderIndex: 0, weight: 1, completedAt: "2026-01-01" },

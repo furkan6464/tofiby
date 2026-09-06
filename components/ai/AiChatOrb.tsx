@@ -26,7 +26,8 @@ export function AiChatOrb({
       <button
         type="button"
         onClick={onClick}
-        aria-label={t("ai.orb")}
+        aria-label={t("ai.talk")}
+        title={t("ai.talk")}
         className={`ai-orb pressable relative shrink-0 overflow-hidden rounded-full ${
           md ? "h-[4.25rem] w-[4.25rem]" : "h-10 w-10"
         }`}
@@ -45,8 +46,8 @@ export function AiChatOrb({
           </span>
         </span>
       </button>
-      <span className={`font-display leading-none text-pink ${md ? "text-[10px]" : "text-[8px]"}`}>
-        AI
+      <span className={`max-w-[4.5rem] text-center font-display leading-tight text-pink ${md ? "text-[9px]" : "text-[8px]"}`}>
+        {t("ai.talk")}
       </span>
     </span>
   );

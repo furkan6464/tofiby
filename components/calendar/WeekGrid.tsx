@@ -14,6 +14,7 @@ import {
   timeFromMinutes,
   weekdayShortTr,
 } from "@/lib/timeBlock";
+import { overlapColumns } from "@/lib/overlap";
 
 const HOUR_PX = 56;
 const START = 0;
@@ -127,16 +128,16 @@ export function WeekGrid({
             ))}
           </div>
           {week.map((d) => {
-            const dayTasks = tasks.filter((x) => x.date === d && x.status !== "postponed");
-            const placed = dayTasks.map((task, i) => ({
-              task,
-              start: task.time ? minutesOf(task.time) : 9 * 60 + i * 30,
-            }));
-            const layout = overlapLayout(placed.map((p) => ({
-              ...p.task,
-              time: timeFromMinutes(p.start),
-              estimatedDurationMinutes: p.task.estimatedDurationMinutes ?? 30,
-            })));
+            const placed = tasks
+              .filter((x) => x.date === d && x.status !== "postponed" && x.time)
+              .map((task) => ({
+                task,
+                start: minutesOf(task.time ?? "00:00"),
+                end: minutesOf(task.time ?? "00:00") + Math.max(15, task.estimatedDurationMinutes ?? 30),
+              }));
+            const layout = overlapColumns(
+              placed.map((p) => ({ id: p.task.id, start: p.start, end: p.end })),
+            );
             return (
               <div
                 key={d}
@@ -228,30 +229,4 @@ export function WeekGrid({
       </div>
     </div>
   );
-}
-
-function overlapLayout(tasks: Task[]) {
-  const items = tasks
-    .filter((x) => x.time)
-    .map((task) => ({
-      task,
-      start: minutesOf(task.time ?? "09:00"),
-      end: minutesOf(task.time ?? "09:00") + (task.estimatedDurationMinutes ?? 30),
-    }))
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-
-  const colEnd: number[] = [];
-  const assigned: { id: string; col: number }[] = [];
-  for (const item of items) {
-    let col = colEnd.findIndex((end) => end <= item.start);
-    if (col < 0) {
-      col = colEnd.length;
-      colEnd.push(item.end);
-    } else {
-      colEnd[col] = item.end;
-    }
-    assigned.push({ id: item.task.id, col });
-  }
-  const cols = Math.max(1, colEnd.length);
-  return new Map(assigned.map((a) => [a.id, { col: a.col, cols }]));
 }

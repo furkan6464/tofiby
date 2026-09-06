@@ -194,6 +194,21 @@
     "coachMet": "Bugün {planned} görev planladın. {done} tanesini tamamladın. Serin güvende.",
     "coachEmpty": "Bugün henüz bir görev yok. Bir tane ekle — ya da günü boş bırak.",
     "longGoals": "Uzun Vadeli Hedeflerim",
+    "todayNote": "Bugünün notu",
+    "tips": {
+      "empty": [
+        "Bugün boş. Bir küçük iş yazmak yeter — ya da günü bilinçli bırak.",
+        "Liste sessiz. İstersen tek bir net görev ekle, gerisi yarın."
+      ],
+      "need": [
+        "Kalan işleri teker teker bitir. Hepsini bitirmek zorunda değilsin.",
+        "Şimdi tek bir göreve odaklan. Seri, hepsini değil yeterince yapmanı ister."
+      ],
+      "met": [
+        "Bugün eşiği geçtin. Fazlası ödül, zorunluluk değil.",
+        "Yeterli iş bitti. İstersen dur; dostun bunu hatırlar."
+      ]
+    },
     "friendHow": "Dostum nasıl durumda?",
     "seeGrowth": "Büyümeyi gör",
     "quickAdd": "Hızlı bir görev yaz…",
@@ -277,6 +292,7 @@
     "upcoming": "Bugünün işleri",
     "viewAll": "Tümünü Gör",
     "breakdown": "Zaman dağılımı",
+    "breakdownEmpty": "Henüz kıyaslanacak veri yok. Birden fazla hedef veya kişisel iş birikince burası dolar.",
     "myCalendars": "Takvimlerim",
     "personal": "Kişisel",
     "tofibyGoals": "Tofiby Hedefleri",
@@ -294,7 +310,13 @@
     "new": "Yeni hedef",
     "active": "Aktif",
     "archived": "Duraklatılmış",
+    "emptyTitle": "İlk hedefini yaz",
     "empty": "Henüz bir hedef yok. Bir tane yaz — takvim onu taşıyacak.",
+    "nextStone": "Sıradaki: {title} · {n} görev kaldı",
+    "noStones": "Henüz kilometre taşı yok. Aşağıya birkaç adım ekle ya da AI’dan plan iste.",
+    "allStones": "Kilometre taşları tamam.",
+    "stoneCount": "{n} kilometre taşı",
+    "stoneTasks": "{left} / {total} görev kaldı",
     "paused": "Duraklatıldı. Geçmiş silinmedi.",
     "progress": "{pct}% — {done} günde çalıştın",
     "until": "bitiş {date}",
@@ -411,6 +433,7 @@
     "planPreview": "Taslak plan — onaylamadan kaydedilmez",
     "applyPlan": "Forma aktar",
     "orb": "AI sohbet",
+    "talk": "Dostla konuş",
     "history": "Geçmiş sohbetler",
     "newChat": "Yeni sohbet",
     "historyEmpty": "Henüz sohbet yok.",
@@ -636,12 +659,30 @@
     "weak": "En çok aksayan hedef: {goal}",
     "soft": "{day} planın genellikle yoğun oluyor. {planned} görev yerine {suggested} görev planlamak ister misin?",
     "softYes": "Bu sınırı hatırla",
-    "softNo": "Şimdilik değil"
+    "softNo": "Şimdilik değil",
+    "needMore": "Henüz yeterli verin yok. Birkaç hafta ve en az on tamamlanan görev sonra buraya bak — erken sayılar yanıltır."
   },
   "tasksPage": {
     "title": "Görevler",
+    "lead": "Hedefe göre gruplu liste — takvimden ayrı, süzülür ve sıralanır.",
     "upcoming": "Yaklaşan",
-    "empty": "Önünde bekleyen bir görev yok."
+    "empty": "Bu süzgeçte görev yok.",
+    "filterAll": "Tümü",
+    "filterPending": "Bekleyen",
+    "filterDone": "Tamamlanan",
+    "filterLater": "Ertelenen",
+    "byGoal": "Hedef",
+    "allGoals": "Tüm hedefler",
+    "noGoal": "Hedefsiz",
+    "byDate": "Tarih",
+    "dateAll": "Tüm tarihler",
+    "dateWeek": "Son 7 gün",
+    "sort": "Sırala",
+    "sortDate": "Tarihe göre",
+    "sortPri": "Önceliğe göre",
+    "sortDur": "Süreye göre",
+    "tag": "Etiket",
+    "mins": "{n} dk"
   },
   "data": {
     "title": "Verilerim",
