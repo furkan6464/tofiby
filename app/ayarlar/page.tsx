@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { detectTimezone } from "@/lib/dates";
 import { downloadText, dumpCsv, dumpJson } from "@/lib/exportData";
-import { deleteMemoryNote, wipeMemory } from "@/lib/aiMemory";
 import { useActiveCreature, useApp, useSession } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -21,7 +20,11 @@ export default function SettingsPage() {
   const milestones = useApp((s) => s.milestones);
   const tasks = useApp((s) => s.tasks);
   const scores = useApp((s) => s.scores);
-  const memory = useApp((s) => (s.aiMemory ?? []).filter((n) => n.userId === user?.id));
+  const removeMemory = useApp((s) => s.removeMemory);
+  const clearMemory = useApp((s) => s.clearMemory);
+  const memory = useApp((s) =>
+    (Array.isArray(s.aiMemory) ? s.aiMemory : []).filter((n) => n.userId === user?.id),
+  );
   if (!user) return null;
 
   return (
@@ -97,7 +100,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   className="shrink-0 text-xs text-faint hover:text-pink"
-                  onClick={() => deleteMemoryNote(note.id)}
+                  onClick={() => removeMemory(note.id)}
                 >
                   {t("common.delete")}
                 </button>
@@ -109,7 +112,7 @@ export default function SettingsPage() {
               tone="ghost"
               onClick={() => {
                 if (!window.confirm(t("settings.memoryClearAsk"))) return;
-                wipeMemory();
+                clearMemory();
               }}
             >
               {t("settings.memoryClear")}

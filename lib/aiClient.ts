@@ -1,4 +1,5 @@
 import { APP_ROUTES, coachingRulesForAi, gameRulesForAi, routeMapForAi } from "./aiRules";
+import { polishChatReply } from "./aiSpeech";
 import { AI_TOOL_DECLARATIONS, groqToolDefs, normalizeToolCalls, toolRulesForAi } from "./aiTools";
 import type {
   AiFail,
@@ -609,6 +610,7 @@ function chatSystem(snapshot: CreatureSnapshot) {
   const memory = (snapshot.memory ?? []).filter(Boolean);
   return [
     "Tofiby adlı bir planlama uygulamasının dostusun. Kısa, sıcak, Türkçe konuş.",
+    "Kullanıcıya teknik ad, fonksiyon adı, markdown veya kod yazma. Sadece insan dili.",
     gameRulesForAi(),
     coachingRulesForAi(),
     routeMapForAi(),
@@ -771,12 +773,12 @@ async function chatTurn(
   const gemini = await geminiToolTurn({ system, messages: recent, traces });
   if (gemini.status === 429) return fail("rate_limited");
   if (gemini.turn && (gemini.turn.reply || gemini.turn.toolCalls.length)) {
-    return { ok: true, data: gemini.turn };
+    return { ok: true, data: polishChatReply(gemini.turn) };
   }
   const groq = await groqToolTurn({ system, messages: recent, traces });
   if (groq.status === 429) return fail("rate_limited");
   if (groq.turn && (groq.turn.reply || groq.turn.toolCalls.length)) {
-    return { ok: true, data: groq.turn };
+    return { ok: true, data: polishChatReply(groq.turn) };
   }
   const fallback = await completeJson({
     system,
@@ -801,7 +803,7 @@ async function chatTurn(
     },
   });
   if (!fallback.ok) return fallback;
-  return { ok: true, data: { ...emptyReply(), ...fallback.data } };
+  return { ok: true, data: polishChatReply({ ...emptyReply(), ...fallback.data }) };
 }
 
 export async function chat(

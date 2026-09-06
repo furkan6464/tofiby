@@ -19,6 +19,7 @@ import {
   yesNo,
 } from "@/lib/aiPlanning";
 import { gitLinksFromReply } from "@/lib/aiRules";
+import { sanitizeAiSpeech } from "@/lib/aiSpeech";
 import { applyChatCalendarAdds, applyScheduleHours, applyTaskDraft, runAiTools, undoAiAction } from "@/lib/aiToolRuntime";
 import type { AiToolTrace, ChatMessage, ChatPending, ChatReply, ChatUndo, ScheduleLesson, TaskDraft } from "@/lib/aiTypes";
 import { nextWeekKeys, remainingWeekKeys, todayKey } from "@/lib/dates";
@@ -347,12 +348,13 @@ function FriendChat({
         setBusy(false);
         if (attached) clearFile();
         if (undos.length || last) {
+          const spoken = sanitizeAiSpeech(last?.reply ?? "");
           setMsgs((cur) => [
             ...cur,
             {
               role: "model",
-              text: last?.reply.trim() || t("ai.done"),
-              links: last?.links ?? [],
+              text: spoken.text.trim() || t("ai.done"),
+              links: [...(last?.links ?? []), ...spoken.links],
               undos,
             },
           ]);
@@ -434,14 +436,15 @@ function FriendChat({
     setBusy(false);
     if (attached) clearFile();
     if (!last) return;
+    const spoken = sanitizeAiSpeech(last.reply);
     const links = [...last.links];
-    for (const extra of gitLinksFromReply(last.reply)) {
+    for (const extra of [...spoken.links, ...gitLinksFromReply(spoken.text)]) {
       if (!links.some((l) => l.href === extra.href)) links.push(extra);
     }
     if (pendingHref && !links.some((l) => l.href === pendingHref)) {
       links.push({ label: t("ai.go"), href: pendingHref });
     }
-    const reply = last.reply.trim() || (undos.length || links.length ? t("ai.done") : "");
+    const reply = spoken.text.trim() || (undos.length || links.length ? t("ai.done") : "");
     if (!reply && !undos.length && !links.length && !pendingHref) return;
     setMsgs((cur) => [
       ...cur,
@@ -573,18 +576,27 @@ function FriendChat({
         ) : (
           <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {msgs.length === 0 && !file ? <p className="text-sm text-faint">{t("ai.chatEmpty")}</p> : null}
-            {msgs.map((m, i) => (
+            {msgs.map((m, i) => {
+              const spoken = m.role === "model" ? sanitizeAiSpeech(m.text) : null;
+              const text = spoken?.text ?? m.text;
+              const links = [...(m.links ?? [])];
+              if (spoken) {
+                for (const extra of spoken.links) {
+                  if (!links.some((l) => l.href === extra.href)) links.push(extra);
+                }
+              }
+              return (
               <div key={`${m.role}-${i}`} className={`max-w-[90%] ${m.role === "user" ? "ml-auto" : ""}`}>
                 <p
                   className={`rounded-2xl px-3 py-2 text-sm ${
                     m.role === "user" ? "bg-violet text-base" : "bg-raised text-ink"
                   }`}
                 >
-                  {m.text}
+                  {text}
                 </p>
-                {m.links?.length ? (
+                {links.length ? (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {m.links.map((link) => (
+                    {links.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}
@@ -625,7 +637,8 @@ function FriendChat({
                   </div>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
             {pending ? (
               <div className="rounded-2xl border border-white/[0.08] bg-raised p-3 space-y-3">
                 {pending.kind === "consultHours" || pending.kind === "consultTime" ? (

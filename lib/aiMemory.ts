@@ -3,7 +3,6 @@
 import { distillMemory } from "./ai";
 import { todayKey } from "./dates";
 import { useApp } from "./store";
-import { cloudClearMemory, cloudDeleteMemory, cloudUpsertMemory } from "./cloud";
 import type { ChatMessage, CreatureSnapshot } from "./aiTypes";
 
 const GUESS =
@@ -76,18 +75,5 @@ export async function maybeDistillMemory(snapshot?: CreatureSnapshot) {
   useApp.getState().markMemoryDistilled(seen);
   if (!result.ok) return;
   const kept = result.data.notes.filter((n) => isSolidMemory(n.text));
-  const added = useApp.getState().addMemoryNotes(kept);
-  for (const note of added) void cloudUpsertMemory(note);
-}
-
-export function deleteMemoryNote(id: string) {
-  useApp.getState().removeMemory(id);
-  void cloudDeleteMemory(id);
-}
-
-export function wipeMemory() {
-  const s = useApp.getState();
-  const user = s.users.find((u) => u.id === s.sessionUserId);
-  useApp.getState().clearMemory();
-  if (user) void cloudClearMemory(user.id);
+  useApp.getState().addMemoryNotes(kept);
 }

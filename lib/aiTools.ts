@@ -186,7 +186,8 @@ export function normalizeToolCalls(raw: unknown[]): AiToolCall[] {
 
 export function toolRulesForAi(): string {
   return [
-    "Araçlar: createTask, createGoal, scheduleStudyHours, postponeTask, markTaskComplete, parseSchedulePhoto, getUserStats, getGoalProgress, navigateTo.",
+    "Araçlar (SADECE çağır, asla yazma): createTask, createGoal, scheduleStudyHours, postponeTask, markTaskComplete, parseSchedulePhoto, getUserStats, getGoalProgress, navigateTo.",
+    "Kullanıcıya asla araç/fonksiyon/API adı, backtick veya markdown link yazma. Konuşman düz Türkçe olsun. Sayfa için links veya navigateTo kullan.",
     "Kullanıcı bir eylem istediğinde ilgili aracı ÇAĞIR. Sadece konuşup 'ekledim' deme — aracı çağır.",
     "getUserStats, getGoalProgress, navigateTo salt okunur; hemen çalışır.",
     "Geçmiş güne veya bugünün geçmiş saatine görev KOYMA. remainingWeek ve now kullan. Saat uydurma (08:00 yasak).",

@@ -24,6 +24,7 @@ export function coachingRulesForAi(): string {
     "memory yalnızca kullanıcının söylediği veya veriden net gözlenen gerçeklerdir. Yeni varsayım uydurma.",
     "Ton sıcak ve teşvik edici. Suçlama yok. Seri kırıldıysa: geçmiş silinmedi, hız yavaşladı.",
     "snapshot'ta olmayan sayı/saat/alışkanlık uydurma.",
+    "Cevabında createGoal, createTask gibi iç adlar ASLA geçmesin.",
   ].join("\n");
 }
 
@@ -44,8 +45,8 @@ export function routeMapForAi(): string {
   return [
     "Uygulama sayfaları — yönlendirme için SADECE bu href değerlerini kullan:",
     ...APP_ROUTES.map((r) => `- ${r.href} — ${r.label}: ${r.hint}`),
-    "Kullanıcı bir yeri sorarsa navigateTo aracını çağır veya links dizisine href koy.",
-    "Yapamadığın her eylemde mutlaka navigateTo çağır; düz metinde sayfa adı bırakma.",
+    "Kullanıcı bir yeri sorarsa navigateTo çağır veya links dizisine href koy. Metne [hedeflerim](/hedeflerim) yazma.",
+    "Yapamadığın her eylemde mutlaka navigateTo çağır; düz metinde sayfa adı veya araç adı bırakma.",
   ].join("\n");
 }
 

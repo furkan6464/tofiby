@@ -13,7 +13,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
             className="mt-8 rounded-full bg-[#ff3e9e] px-4 py-2.5 text-sm font-medium text-[#07060b]"
             onClick={() => reset()}
           >
-            {t("common.continue")}
+            {t("common.retry")}
           </button>
         </main>
       </body>

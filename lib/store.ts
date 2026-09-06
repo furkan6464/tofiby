@@ -69,8 +69,11 @@ import {
   cloudLookupFriend,
   cloudMarkNoticesRead,
   cloudPublishCreature,
+  cloudClearMemory,
+  cloudDeleteMemory,
   cloudPullMemory,
   cloudPullSocial,
+  cloudUpsertMemory,
   cloudDeleteAccount,
   cloudSession,
   cloudSetOnboarded,
@@ -478,12 +481,16 @@ export const useApp = create<AppState>()(
           });
         }
         await get().syncCloudSocial();
-        const remoteMem = await cloudPullMemory(session.userId);
-        if (remoteMem?.length) {
-          const local = get().aiMemory ?? [];
-          const have = new Set(local.filter((n) => n.userId === session.userId).map((n) => n.id));
-          const extra = remoteMem.filter((n) => n.text && !have.has(n.id));
-          if (extra.length) set({ aiMemory: [...local, ...extra] });
+        try {
+          const remoteMem = await cloudPullMemory(session.userId);
+          if (remoteMem?.length) {
+            const local = get().aiMemory ?? [];
+            const have = new Set(local.filter((n) => n.userId === session.userId).map((n) => n.id));
+            const extra = remoteMem.filter((n) => n.text && !have.has(n.id));
+            if (extra.length) set({ aiMemory: [...local, ...extra] });
+          }
+        } catch {
+          /* tablo yoksa veya ağ düşerse yerel hafıza yeter */
         }
         const mine = get().creatures.find((c) => c.ownerId === session.userId && c.status === "active");
         if (mine) await cloudPublishCreature(mine);
@@ -1684,15 +1691,18 @@ export const useApp = create<AppState>()(
         const mine = [...extra, ...(get().aiMemory ?? []).filter((n) => n.userId === user.id)].slice(0, 40);
         const others = (get().aiMemory ?? []).filter((n) => n.userId !== user.id);
         set({ aiMemory: [...others, ...mine] });
+        for (const note of extra) void cloudUpsertMemory(note);
         return extra;
       },
       removeMemory: (id) => {
         set({ aiMemory: (get().aiMemory ?? []).filter((n) => n.id !== id) });
+        void cloudDeleteMemory(id);
       },
       clearMemory: () => {
         const user = currentUser(get());
         if (!user) return;
         set({ aiMemory: (get().aiMemory ?? []).filter((n) => n.userId !== user.id) });
+        void cloudClearMemory(user.id);
       },
       markMemoryDistilled: (seen) => {
         const user = currentUser(get());
@@ -1718,6 +1728,11 @@ export const useApp = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       version: 9,
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (!Array.isArray(state.aiMemory)) state.aiMemory = [];
+        if (!state.aiMemoryCursor) state.aiMemoryCursor = {};
+      },
       migrate: (persisted) => {
         try {
           const p = persisted as {
@@ -1777,8 +1792,8 @@ export const useApp = create<AppState>()(
         taskCompanions: s.taskCompanions,
         achievements: s.achievements,
         chatThreads: s.chatThreads,
-        aiMemory: s.aiMemory,
-        aiMemoryCursor: s.aiMemoryCursor,
+        aiMemory: Array.isArray(s.aiMemory) ? s.aiMemory : [],
+        aiMemoryCursor: s.aiMemoryCursor ?? {},
         focusRuns: s.focusRuns,
       }),
     },
