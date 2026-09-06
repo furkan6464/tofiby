@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { DesktopNav, MobileTabs } from "./Nav";
-import { AiRailDock, CreatureBar, CreatureRail } from "../creature/CreatureWidget";
+import { DesktopNav } from "./Nav";
+import { MobileTopBar } from "./MobileChrome";
+import { AiRailDock, CreatureRail } from "../creature/CreatureWidget";
 import { CommandPalette } from "../search/CommandPalette";
 import { CalendarTopBar } from "../calendar/CalendarTopBar";
 import { AppTools } from "./AppTools";
@@ -39,17 +40,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             : "flex h-dvh flex-col overflow-hidden lg:flex-row"
         }
       >
+        <div className="lg:hidden">
+          <MobileTopBar />
+        </div>
         {calendar ? (
-          <CalendarTopBar />
+          <div className="hidden lg:block">
+            <CalendarTopBar />
+          </div>
         ) : (
-          <>
-            <div className="hidden h-full lg:contents">
-              <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
-            </div>
-            <div className="lg:hidden">
-              <CreatureBar />
-            </div>
-          </>
+          <div className="hidden h-full lg:contents">
+            <DesktopNav collapsed={!navOpen} onToggle={toggleNav} />
+          </div>
         )}
         <div
           className={`flex min-h-0 min-w-0 flex-1 flex-col ${
@@ -62,8 +63,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <div
-            className={`min-h-0 flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0 ${
-              calendar ? "overflow-hidden" : "overflow-y-auto"
+            className={`min-h-0 flex-1 overflow-x-hidden ${
+              calendar ? "overflow-hidden" : "overflow-y-auto pb-[env(safe-area-inset-bottom)]"
             }`}
           >
             {children}
@@ -75,7 +76,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <CreatureRail />
           </div>
         )}
-        <MobileTabs />
       </div>
       <FriendChatHost />
       <AiConsentHost />

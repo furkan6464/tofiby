@@ -51,8 +51,8 @@ export default function GoalsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8">
-      <div className="flex items-end justify-between">
-        <h1 className="font-display text-4xl">{t("goals.title")}</h1>
+      <div className="flex items-end justify-end lg:justify-between">
+        <h1 className="hidden font-display text-4xl lg:block">{t("goals.title")}</h1>
         <Button onClick={() => setOpen(true)}>{t("goals.new")}</Button>
       </div>
       <p className="mt-2 text-sm text-faint">{t("goals.cycle")}</p>

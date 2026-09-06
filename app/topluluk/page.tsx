@@ -51,7 +51,7 @@ export default function CommunityPage() {
 
   return (
     <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("community.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("community.title")}</h1>
       <p className="mt-2 text-sm text-faint">{t("community.privacy")}</p>
 
       <Card className="mt-6 p-5">

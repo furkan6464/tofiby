@@ -12,7 +12,7 @@ export default function GenerationPage() {
   const mine = creatures.filter((c) => c.ownerId === user.id);
   return (
     <main className="mx-auto max-w-3xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("gen.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("gen.title")}</h1>
       <p className="mt-2 text-sm text-muted">{t("gen.hint")}</p>
       <Card className="mt-6 p-5">
         <FamilyTree creatures={mine} />

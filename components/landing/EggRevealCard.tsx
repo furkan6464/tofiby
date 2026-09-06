@@ -9,12 +9,15 @@ export function EggRevealCard({
   id,
   open,
   onToggle,
+  size = "md",
 }: {
   id: SpeciesId;
   open: boolean;
   onToggle: () => void;
+  size?: "md" | "lg";
 }) {
   const hue = speciesHue(id);
+  const px = size === "lg" ? 4 : 3;
   return (
     <button
       type="button"
@@ -24,18 +27,18 @@ export function EggRevealCard({
         name: t(`species.${id}`),
         stage: t(open ? "stage.baby" : "stage.egg"),
       })}
-      className={`egg-reveal ${open ? "is-open" : ""}`}
+      className={`egg-reveal ${size === "lg" ? "egg-reveal-lg" : ""} ${open ? "is-open" : ""}`}
     >
       <span className={`egg-reveal-inner ${open ? "is-flipped" : ""}`}>
         <span className="egg-reveal-face">
-          <CreatureView speciesId={id} stage="egg" hueShift={hue} pixelSize={3} />
+          <CreatureView speciesId={id} stage="egg" hueShift={hue} pixelSize={px} />
         </span>
         <span className="egg-reveal-face egg-reveal-back">
           <CreatureView
             speciesId={id}
             stage="baby"
             hueShift={hue}
-            pixelSize={3}
+            pixelSize={px}
             state="sparkle"
           />
         </span>

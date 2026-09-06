@@ -544,7 +544,7 @@ function FriendChat({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-end p-3 sm:p-5"
+      className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-end sm:justify-end sm:p-5"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -552,7 +552,7 @@ function FriendChat({
     >
       <button className="absolute inset-0 bg-black/40" aria-label={t("common.close")} onClick={onClose} />
       <section
-        className={`relative flex h-[min(36rem,88dvh)] w-full max-w-md flex-col overflow-hidden rounded-nest border bg-surface shadow-glow ${
+        className={`relative flex h-[min(40rem,92dvh)] w-full max-w-md flex-col overflow-hidden rounded-t-nest border bg-surface shadow-glow sm:rounded-nest ${
           drag ? "border-pink" : "border-white/[0.08]"
         }`}
       >

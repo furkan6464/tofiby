@@ -29,7 +29,8 @@
     "productivity": "Üretkenlik",
     "creatureCol": "Dost",
     "collapse": "Menüyü kapat",
-    "expand": "Menüyü aç"
+    "expand": "Menüyü aç",
+    "menu": "Menü"
   },
   "common": {
     "continue": "İleri",
@@ -94,9 +95,62 @@
     "mathTitle": "Neden adil hissettirir",
     "mathBody": "Aynı 20 gün emek: dağınık yapılırsa bir hız, art arda yapılırsa bir başka hız. Tutarlı olan yaklaşık yarı yarıya daha çabuk olgunlaşır — hissedilir, ama cezalandırıcı değil.",
     "speciesTitle": "İçinden kim çıkacak?",
+    "speciesSub": "9 farklı karakter, her biri kendi kişiliğiyle.",
     "speciesHint": "Bir karta dokun — yumurta dönsün, bebek hali görünsün.",
     "flipAria": "{name}, {stage}. Dönmek için dokun.",
-    "footerNote": "Tofiby bir marka yoldaşıdır. Senin dostun kendi adını taşır."
+    "footerNote": "Tofiby bir marka yoldaşıdır. Senin dostun kendi adını taşır.",
+    "tourKicker": "Canlı önizleme",
+    "tourTitle": "Uygulamanın içinde gez",
+    "tourLede": "Üye olmadan tıkla. Görev işaretle, gün değiştir. Hiçbir şey kaydedilmez — sadece bu oturum.",
+    "tab": {
+      "today": "Bugün",
+      "calendar": "Takvim",
+      "friend": "Dost",
+      "chat": "AI Sohbet"
+    },
+    "demoStreak": "{n} günlük seri",
+    "demoChatHi": "Ne koymamı istersin? Örneğin yarın akşama bir ders.",
+    "demoChatDone": "Yarın 20:00 · İngilizce. Takvim sekmesinde görebilirsin — kaydetmedim, sadece burada.",
+    "demoChatReply": "Burada gerçekten yazabilirsin. “Yarın 20:00'e İngilizce koy” dersen takvime bir örnek bırakırım.",
+    "togetherHint": "Yetişkin olunca başka bir dostla tanışıp yeni bir nesil başlatabilirsiniz.",
+    "demoSlot": "Yeni iş",
+    "feature": {
+      "today": {
+        "kicker": "Bugünkü İşler",
+        "title": "Sabah aç, ne yapman gerektiğini gör.",
+        "body": "Tofiby her sabah tek bir soru sorar: bugün ne kadarı yeterli? Görevlerini işaretledikçe ilerleme çubuğun dolar, serin korunur."
+      },
+      "calendar": {
+        "kicker": "Notion kalitesinde takvim",
+        "title": "Haftanı gerçekten planla.",
+        "body": "Sürükle-bırak, zaman blokları, tek tıkla hızlı ekleme. Hedeflerine ayırdığın her saat, renk kodlu, tek bakışta net."
+      },
+      "friend": {
+        "kicker": "Büyüyen bir dost",
+        "title": "Tutarlılığın gözle görülür hale gelir.",
+        "body": "Her seri günü, dostunu bir adım büyütür. Rastgele değil — matematiksel olarak adil bir büyüme."
+      },
+      "chat": {
+        "kicker": "Konuşarak yönet",
+        "title": "Ona sadece söyle, o halletsin.",
+        "body": "“Yarın 20:00'e İngilizce koy” de, yeter. AI koçun takvimini senin yerine düzenler, en verimli saatlerini bilir."
+      },
+      "together": {
+        "kicker": "Yalnız büyümüyorsun",
+        "title": "Bir arkadaşınla birlikte büyüyün.",
+        "body": "Yetişkinliğe ulaşınca, başka birinin dostuyla tanışıp yeni bir nesil başlatabilirsin."
+      }
+    },
+    "closeTitle": "Hadi başlayalım.",
+    "closeLede": "Yumurtan seni bekliyor. İlk seri gününde kabuk çatlar.",
+    "footerPrivacy": "Gizlilik",
+    "footerContact": "İletişim",
+    "footerCopy": "© {year} Tofiby",
+    "legalBack": "Ana sayfa",
+    "privacyTitle": "Gizlilik",
+    "privacyBody": "Tofiby günlük planını ve dostunu cihazında tutar. Landing sayfasındaki canlı demo örnek veridir; işaretlediğin görevler kaydedilmez ve gerçek hesabınla karışmaz. Hesap açınca verin senin yuvanda kalır.",
+    "contactTitle": "İletişim",
+    "contactBody": "Bir şey takılırsa giriş yaptıktan sonra Ayarlar’dan yazabilirsin. Landing’deki demo sohbet gerçek bir destek hattı değildir."
   },
   "species": {
     "tofiby": "Tofiby",

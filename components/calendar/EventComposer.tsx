@@ -51,7 +51,7 @@ export function EventComposer({
   }
 
   return (
-    <div className="event-pop max-h-[min(85dvh,40rem)] w-[min(23rem,92vw)] overflow-y-auto rounded-[24px] bg-[#f7f7f8] px-6 py-6 text-[#141414] shadow-[0_36px_90px_rgba(0,0,0,0.55)]">
+    <div className="event-pop max-h-[min(85dvh,40rem)] w-full max-w-[23rem] overflow-y-auto rounded-[24px] bg-[#f7f7f8] px-6 py-6 text-[#141414] shadow-[0_36px_90px_rgba(0,0,0,0.55)]">
       <div className="flex items-start justify-between gap-3">
         {editingTitle ? (
           <input

@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("insights.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("insights.title")}</h1>
       <Card className="mt-6 p-5">
         <YearHeatmap
           today={today}

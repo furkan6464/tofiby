@@ -14,7 +14,7 @@ import { LetterMoment } from "../creature/LetterMoment";
 import { AppShell } from "./AppShell";
 
 const queryClient = new QueryClient();
-const PUBLIC = new Set(["/", "/giris", "/kayit"]);
+const PUBLIC = new Set(["/", "/giris", "/kayit", "/gizlilik", "/iletisim"]);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);

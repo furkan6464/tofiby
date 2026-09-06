@@ -27,7 +27,7 @@ export default function CreaturePage() {
   if (!creature) {
     return (
       <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
-        <h1 className="font-display text-4xl">{t("creature.unnamed")}</h1>
+        <h1 className="hidden font-display text-4xl lg:block">{t("creature.unnamed")}</h1>
         <p className="mt-3 text-muted">{t("goals.empty")}</p>
       </main>
     );
@@ -40,7 +40,7 @@ export default function CreaturePage() {
 
   return (
     <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
-      <h1 className="font-display text-4xl">{friendName(creature.name)}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{friendName(creature.name)}</h1>
       <Card className="mt-6 overflow-hidden p-6">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-end">
           <CreatureView

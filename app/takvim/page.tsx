@@ -31,6 +31,7 @@ import { GOAL_COLOR_FALLBACK } from "@/lib/goalColors";
 import { tint } from "@/lib/timeBlock";
 import { HoursSuggestButton } from "@/components/ai/HoursSuggest";
 import { ScheduleImportButton } from "@/components/ai/ScheduleImport";
+import { dayNum, weekdayShortTr } from "@/lib/timeBlock";
 
 type View = "month" | "week" | "day" | "list";
 
@@ -66,6 +67,8 @@ function CalendarInner() {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
   const [popAt, setPopAt] = useState<{ x: number; y: number } | null>(null);
   const [railOpen, setRailOpen] = useState(false);
+  const [narrow, setNarrow] = useState(false);
+  const [touchX, setTouchX] = useState<number | null>(null);
 
   function applyRange(start: string, end: string) {
     const lo = start <= end ? start : end;
@@ -93,6 +96,14 @@ function CalendarInner() {
   }
 
   useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
     const qDate = search.get("d");
     const qView = search.get("view");
     if (qDate) {
@@ -109,11 +120,18 @@ function CalendarInner() {
   useEffect(() => {
     if (!user || cursor) return;
     const d = todayKey(user.timezone);
-    const wk = weekKeys(d);
+    const mobile = window.matchMedia("(max-width: 1023px)").matches;
     setCursor(d);
+    if (mobile && !search.get("view")) {
+      setView("day");
+      setRangeStart(d);
+      setRangeEnd(d);
+      return;
+    }
+    const wk = weekKeys(d);
     setRangeStart(wk[0]);
     setRangeEnd(wk[6]);
-  }, [user, cursor]);
+  }, [user, cursor, search]);
 
   useEffect(() => {
     if (cursor) setMonthCursor(cursor);
@@ -152,9 +170,11 @@ function CalendarInner() {
   const rangeHi = rangeStart && rangeEnd ? (rangeStart <= rangeEnd ? rangeEnd : rangeStart) : activeCursor;
   const rangeSpan = diffDays(rangeLo, rangeHi) + 1;
   const visibleDays =
-    view === "week" && rangeSpan <= 1
-      ? weekKeys(activeCursor)
-      : dateKeysBetween(rangeLo, rangeHi, 14);
+    view === "day"
+      ? [activeCursor]
+      : view === "week" && rangeSpan <= 1
+        ? weekKeys(activeCursor)
+        : dateKeysBetween(rangeLo, rangeHi, 14);
   const week = visibleDays;
   const hidden = useMemo(() => new Set(hiddenCals), [hiddenCals]);
   const mine = useMemo(
@@ -311,11 +331,12 @@ function CalendarInner() {
   );
 
   return (
-    <main className="flex h-auto flex-col px-4 py-4 lg:h-full lg:overflow-hidden lg:px-6 lg:py-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-[28px] font-bold capitalize leading-none lg:text-[32px]">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 lg:px-6 lg:py-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 lg:mb-4">
+        <h1 className="hidden font-display text-[28px] font-bold capitalize leading-none lg:block lg:text-[32px]">
           {monthLabel(activeCursor)}
         </h1>
+        <p className="font-display text-xl capitalize lg:hidden">{monthLabel(activeCursor)}</p>
         <div className="flex flex-wrap items-center gap-2">
           <ScheduleImportButton />
           <button
@@ -365,10 +386,40 @@ function CalendarInner() {
 
       {railOpen ? <div className="mb-4 lg:hidden">{rail}</div> : null}
 
-      <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[18.5rem_minmax(0,1fr)] lg:gap-5">
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[18.5rem_minmax(0,1fr)] lg:gap-5">
         <div className="hidden lg:block lg:min-h-0">{rail}</div>
 
-        <section className="flex h-[70vh] min-h-[28rem] min-w-0 flex-col rounded-2xl border border-white/[0.06] bg-surface p-3 lg:h-full lg:min-h-0 lg:p-4">
+        <section
+          className="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-white/[0.06] bg-surface p-2 lg:h-full lg:p-4"
+          onTouchStart={(e) => {
+            if (view !== "day") return;
+            setTouchX(e.changedTouches[0]?.clientX ?? null);
+          }}
+          onTouchEnd={(e) => {
+            if (view !== "day" || touchX == null) return;
+            const dx = (e.changedTouches[0]?.clientX ?? touchX) - touchX;
+            setTouchX(null);
+            if (Math.abs(dx) < 56) return;
+            pickSingle(addDays(activeCursor, dx < 0 ? 1 : -1));
+          }}
+        >
+          {view === "day" ? (
+            <div className="mb-2 flex gap-1 overflow-x-auto pb-1 lg:hidden">
+              {weekKeys(activeCursor).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => pickSingle(d)}
+                  className={`min-w-[2.75rem] rounded-full px-2 py-2 text-center ${
+                    d === activeCursor ? "bg-white text-black" : "text-muted"
+                  }`}
+                >
+                  <span className="block text-[10px] uppercase">{weekdayShortTr(d)}</span>
+                  <span className="block font-display text-base leading-none">{dayNum(d)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {loose.length > 0 && (view === "week" || view === "day") ? (
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="text-[10px] text-faint">{t("calendar.looseHint")}</span>
@@ -491,7 +542,10 @@ function CalendarInner() {
             aria-label={t("common.close")}
             onClick={() => setDraft(null)}
           />
-          <div className="fixed z-[86]" style={popStyle}>
+          <div
+            className={narrow ? "fixed inset-x-3 bottom-3 z-[86]" : "fixed z-[86]"}
+            style={narrow ? undefined : popStyle}
+          >
             <EventComposer
               draft={draft}
               goals={mine}

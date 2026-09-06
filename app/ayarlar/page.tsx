@@ -28,7 +28,7 @@ export default function SettingsPage() {
 
   return (
     <main className="safe-pad mx-auto max-w-xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("settings.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("settings.title")}</h1>
       <Card className="mt-6 space-y-4 p-5">
         <p className="text-sm text-faint">{t("settings.account")}</p>
         <p className="font-display text-2xl">@{user.username}</p>

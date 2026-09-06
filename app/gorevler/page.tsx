@@ -92,7 +92,7 @@ export default function TasksPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("tasksPage.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("tasksPage.title")}</h1>
       <p className="mt-2 text-sm text-faint">{t("tasksPage.lead")}</p>
 
       <div className="mt-6 flex flex-wrap gap-2">

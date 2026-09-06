@@ -48,7 +48,7 @@ export default function ProfilePage() {
 
   return (
     <main className="safe-pad mx-auto max-w-3xl px-5 py-8">
-      <h1 className="font-display text-4xl">{t("profile.title")}</h1>
+      <h1 className="hidden font-display text-4xl lg:block">{t("profile.title")}</h1>
       <p className="mt-1 text-muted">@{user.username}</p>
 
       <div className="mt-8 grid grid-cols-3 gap-3">
