@@ -44,7 +44,7 @@ function TodayDemo() {
         />
       </div>
       <ul className="mt-3 space-y-2">
-        <Row time="14:00" title="Koşu" checked />
+        <Row time="14:00" title="Matematik" checked />
         <li className="relative flex items-center gap-2 rounded-2xl bg-raised px-2.5 py-2">
           <motion.span
             className="onboard-tap"
@@ -85,8 +85,8 @@ function Row({ time, title, checked }: { time: string; title: string; checked?: 
 }
 
 function CalendarDemo() {
-  const days = tList("onboarding.weekdays").slice(0, 5);
-  const nums = ["8", "9", "10", "11", "12"];
+  const days = tList("onboarding.weekdays").slice(0, 3);
+  const nums = ["8", "9", "10"];
   const hours = ["13:00", "14:00", "15:00"];
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -97,15 +97,15 @@ function CalendarDemo() {
     return () => window.clearTimeout(id);
   }, []);
   return (
-    <div className="px-2 pb-3 pt-1">
+    <div className="px-2.5 pb-3 pt-1">
       <p className="px-1 text-left font-display text-lg">{t("nav.calendar")}</p>
-      <div className="mt-2 grid grid-cols-[1.7rem_repeat(5,minmax(0,1fr))] gap-x-0.5">
+      <div className="mt-2 grid grid-cols-[2.1rem_repeat(3,minmax(0,1fr))]">
         <span />
         {days.map((d, i) => (
-          <div key={d} className="pb-1 text-center">
-            <p className="text-[9px] uppercase text-muted">{d}</p>
+          <div key={d} className="pb-1.5 text-center">
+            <p className="text-[10px] uppercase text-muted">{d}</p>
             <span
-              className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full text-[11px] ${
+              className={`mt-0.5 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-xs ${
                 i === 2 ? "bg-white text-black" : "text-ink"
               }`}
             >
@@ -121,34 +121,42 @@ function CalendarDemo() {
   );
 }
 
+function CalBlock({ title, tone }: { title: string; tone: "violet" | "pink" }) {
+  return (
+    <div
+      className={`absolute inset-1 flex items-center rounded-xl px-1.5 text-left text-[10px] font-medium leading-tight text-base ${
+        tone === "pink" ? "bg-pink shadow-[0_6px_14px_rgba(0,0,0,0.28)]" : "bg-violet"
+      }`}
+    >
+      <span className="block w-full hyphens-auto break-words">{title}</span>
+    </div>
+  );
+}
+
 function HourRow({ hour, show }: { hour: string; show: boolean }) {
   return (
     <>
-      <p className="self-start pt-0.5 text-right text-[8px] text-faint">{hour}</p>
-      {Array.from({ length: 5 }, (_, i) => (
-        <div key={`${hour}-${i}`} className="relative h-11 border-l border-t border-white/5">
-          {hour === "13:00" && i === 0 ? (
-            <div className="absolute inset-x-0.5 top-1 overflow-hidden rounded-xl bg-violet px-1 py-1 text-left text-[8px] leading-tight text-base">
-              Koşu
-            </div>
-          ) : null}
+      <p className="self-start pt-1 pr-1 text-right text-[9px] text-faint">{hour}</p>
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={`${hour}-${i}`} className="relative h-14 border-l border-t border-white/5">
+          {hour === "13:00" && i === 0 ? <CalBlock title="Tarih" tone="violet" /> : null}
           {hour === "14:00" && i === 2 ? (
             <>
               <motion.span
                 className="onboard-tap"
-                style={{ left: "30%", top: "28%" }}
+                style={{ left: "36%", top: "30%" }}
                 initial={{ opacity: 0, scale: 0.3 }}
                 animate={{ opacity: [0, 1, 0], scale: [0.3, 1, 1.35] }}
                 transition={{ duration: 0.65, delay: 0.2 }}
               />
               {show ? (
                 <motion.div
-                  initial={{ y: 10, opacity: 0, scale: 0.86 }}
+                  className="absolute inset-0"
+                  initial={{ y: 10, opacity: 0, scale: 0.9 }}
                   animate={{ y: 0, opacity: 1, scale: 1 }}
                   transition={{ type: "spring", stiffness: 380, damping: 20 }}
-                  className="absolute inset-x-0.5 top-1 overflow-hidden rounded-xl bg-pink px-1 py-1 text-left text-[8px] leading-tight text-base shadow-[0_6px_14px_rgba(0,0,0,0.28)]"
                 >
-                  İngilizce
+                  <CalBlock title="İngilizce" tone="pink" />
                 </motion.div>
               ) : null}
             </>
@@ -177,7 +185,7 @@ function GoalsDemo() {
         </div>
       </div>
       <div className="mt-2 rounded-panel bg-raised p-3 opacity-70">
-        <p className="text-sm">Koşu</p>
+        <p className="text-sm">Matematik</p>
         <div className="mt-2 h-2 rounded-full bg-base">
           <div className="h-full w-[40%] rounded-full bg-violet" />
         </div>
