@@ -5,15 +5,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { GOAL_COLORS } from "@/lib/goalColors";
-import { speciesHue } from "@/data/species/catalog";
 import { assignHiddenEggSpecies } from "@/lib/genetics";
+import { playSfx, unlockSfx } from "@/lib/onboardSfx";
 import { useApp } from "@/lib/store";
 import type { CreatureGender, FrequencyPattern, SpeciesId } from "@/lib/types";
-import type { CreatureStage } from "@/lib/gameConfig";
 import type { SpriteState } from "@/data/creatures/types";
 import { Button } from "@/components/ui/Button";
 import { CreatureView } from "@/components/creature/CreatureView";
-import { AiChatOrb } from "@/components/ai/AiChatOrb";
+import { AppPreview, type PreviewKind } from "@/components/onboarding/AppPreview";
 import { OnboardMascot, type MascotMove } from "@/components/onboarding/OnboardMascot";
 import { SpeechBubble } from "@/components/onboarding/SpeechBubble";
 
@@ -23,11 +22,10 @@ type Step =
   | "gender"
   | "name"
   | "egg"
-  | "mechEgg"
-  | "mechBaby"
-  | "mechChild"
-  | "mechTeen"
-  | "mechAdult"
+  | "today"
+  | "calendar"
+  | "goals"
+  | "analiz"
   | "ai"
   | "goal"
   | "goalJoy"
@@ -40,11 +38,10 @@ const FLOW: Step[] = [
   "gender",
   "name",
   "egg",
-  "mechEgg",
-  "mechBaby",
-  "mechChild",
-  "mechTeen",
-  "mechAdult",
+  "today",
+  "calendar",
+  "goals",
+  "analiz",
   "ai",
   "goal",
   "goalJoy",
@@ -53,11 +50,12 @@ const FLOW: Step[] = [
   "bye",
 ];
 
-const SHOWCASE: Partial<Record<CreatureStage, SpeciesId>> = {
-  baby: "tofiby",
-  child: "ruji",
-  teen: "yildiz",
-  adult: "kalyoz",
+const TOUR: Partial<Record<Step, PreviewKind>> = {
+  today: "today",
+  calendar: "calendar",
+  goals: "goals",
+  analiz: "analiz",
+  ai: "ai",
 };
 
 const FREQS = [1, 2, 3, 4, 5, 6, 7];
@@ -83,14 +81,20 @@ export default function OnboardingPage() {
   const [leaving, setLeaving] = useState(false);
   const own = hidden?.speciesId ?? "tofiby";
   const ownHue = hidden?.hueShift ?? 330;
+  const tour = TOUR[step];
 
   function go(next: Step) {
+    unlockSfx();
+    playSfx(next === "goalJoy" ? "chime" : "pop");
     setStep(next);
   }
 
   function back() {
     const i = FLOW.indexOf(step);
-    if (i > 0) setStep(FLOW[i - 1]);
+    if (i > 0) {
+      playSfx("soft");
+      setStep(FLOW[i - 1]);
+    }
   }
 
   function afterName() {
@@ -103,6 +107,7 @@ export default function OnboardingPage() {
   function closeOut() {
     if (leaving) return;
     setLeaving(true);
+    playSfx("chime");
     window.setTimeout(() => {
       finish({
         creatureName: name,
@@ -129,87 +134,71 @@ export default function OnboardingPage() {
     }, 720);
   }
 
-  function mascot(
-    stage: CreatureStage,
-    opts: {
-      move: MascotMove;
-      sprite?: SpriteState;
-      silhouette?: boolean;
-      speciesId?: SpeciesId;
-      hueShift?: number;
-      pixel?: number;
-    },
-  ) {
-    const speciesId = opts.speciesId ?? own;
+  function mascot(move: MascotMove, sprite: SpriteState = "idle", silhouette = false, pixel = tour ? 5 : 9) {
     return (
-      <OnboardMascot move={opts.move} silhouette={opts.silhouette} leaving={step === "bye" && leaving}>
-        <CreatureView
-          speciesId={speciesId}
-          stage={stage}
-          hueShift={opts.hueShift ?? (SHOWCASE[stage] ? speciesHue(SHOWCASE[stage]!) : ownHue)}
-          pixelSize={opts.pixel ?? 10}
-          state={opts.sprite ?? "idle"}
-        />
+      <OnboardMascot move={move} silhouette={silhouette} leaving={step === "bye" && leaving}>
+        <CreatureView speciesId={own} stage="egg" hueShift={ownHue} pixelSize={pixel} state={sprite} />
       </OnboardMascot>
     );
   }
 
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center overflow-hidden px-5 py-8">
-      <AnimatePresence mode="wait">
-        {step === "welcome" ? (
-          <Scene
-            key="welcome"
-            id="welcome"
-            bubble={t("onboarding.welcomeBubble")}
-            mascot={mascot("egg", { move: "idle", sprite: "sparkle", silhouette: true, speciesId: "tofiby", hueShift: 330 })}
-            footer={<Button onClick={() => go("gender")}>{t("onboarding.sayHi")}</Button>}
-          />
-        ) : null}
+  const bubble = {
+    welcome: t("onboarding.welcomeBubble"),
+    gender: t("onboarding.genderBubble"),
+    name: t("onboarding.nameBubble"),
+    egg: t("onboarding.eggBubble"),
+    today: t("onboarding.todayBubble"),
+    calendar: t("onboarding.calendarBubble"),
+    goals: t("onboarding.goalsTourBubble"),
+    analiz: t("onboarding.analizBubble"),
+    ai: t("onboarding.aiBubble"),
+    goal: t("onboarding.goalBubble"),
+    goalJoy: t("onboarding.goalJoy"),
+    freq: t("onboarding.freqBubble"),
+    mins: t("onboarding.minsBubble"),
+    bye: t("onboarding.byeBubble"),
+  }[step];
 
-        {step === "gender" ? (
-          <Scene
-            key="gender"
-            id="gender"
-            bubble={t("onboarding.genderBubble")}
-            mascot={mascot("egg", { move: "peek", sprite: "look", silhouette: true, speciesId: "tofiby", hueShift: 330 })}
-            footer={
-              <Nav onBack={back} onNext={() => go("name")} nextDisabled={!gender} />
-            }
-          >
+  const move: MascotMove =
+    step === "welcome" || step === "egg"
+      ? "wobble"
+      : step === "goalJoy" || step === "bye" || step === "name"
+        ? "hop"
+        : step === "ai"
+          ? "talk"
+          : "peek";
+  const sprite: SpriteState =
+    step === "goalJoy" ? "happy" : step === "egg" ? "sleepy" : step === "welcome" ? "sparkle" : "look";
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center overflow-hidden px-5 py-7">
+      <AnimatePresence mode="wait">
+        <Scene key={step} id={step} bubble={bubble} compact={Boolean(tour)} mascot={mascot(move, sprite, step === "welcome" || step === "gender" || step === "name")} preview={tour ? <AppPreview kind={tour} /> : null} footer={footer()}>
+          {step === "gender" ? (
             <div className="mt-2 grid w-full grid-cols-2 gap-3">
               {(
                 [
                   ["kiz", "onboarding.genderGirl", "text-pink"],
                   ["erkek", "onboarding.genderBoy", "text-violet"],
                 ] as const
-              ).map(([value, label, tone]) => {
-                const selected = gender === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setGender(value)}
-                    className={`min-h-[7.5rem] rounded-panel border px-4 py-5 text-left transition ${
-                      selected ? "border-white/40 bg-raised" : "border-white/[0.06] bg-surface"
-                    }`}
-                  >
-                    <p className={`font-display text-2xl ${tone}`}>{t(label)}</p>
-                  </button>
-                );
-              })}
+              ).map(([value, label, tone]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    setGender(value);
+                    playSfx("click");
+                  }}
+                  className={`min-h-[7rem] rounded-panel border px-4 py-5 text-left ${
+                    gender === value ? "border-white/40 bg-raised" : "border-white/[0.06] bg-surface"
+                  }`}
+                >
+                  <p className={`font-display text-2xl ${tone}`}>{t(label)}</p>
+                </button>
+              ))}
             </div>
-          </Scene>
-        ) : null}
-
-        {step === "name" ? (
-          <Scene
-            key="name"
-            id="name"
-            bubble={t("onboarding.nameBubble")}
-            mascot={mascot("egg", { move: "hop", sprite: "bounce", silhouette: true, speciesId: "tofiby", hueShift: 330 })}
-            footer={<Nav onBack={back} onNext={afterName} nextDisabled={!name.trim() || !gender} />}
-          >
+          ) : null}
+          {step === "name" ? (
             <input
               className="mt-2 w-full px-3 py-2.5 text-center"
               placeholder={t("onboarding.namePlaceholder")}
@@ -217,117 +206,8 @@ export default function OnboardingPage() {
               onChange={(e) => setName(e.target.value)}
               autoFocus
             />
-          </Scene>
-        ) : null}
-
-        {step === "egg" ? (
-          <Scene
-            key="egg"
-            id="egg"
-            bubble={t("onboarding.eggBubble")}
-            mascot={mascot("egg", { move: "wobble", sprite: "sleepy" })}
-            footer={<Nav onBack={back} onNext={() => go("mechEgg")} />}
-          />
-        ) : null}
-
-        {step === "mechEgg" ? (
-          <Scene
-            key="mechEgg"
-            id="mechEgg"
-            bubble={t("onboarding.slide1Bubble")}
-            mascot={mascot("egg", { move: "shake", sprite: "bounce" })}
-            footer={<Nav onBack={back} onNext={() => go("mechBaby")} />}
-          />
-        ) : null}
-
-        {step === "mechBaby" ? (
-          <Scene
-            key="mechBaby"
-            id="mechBaby"
-            bubble={t("onboarding.slide2Bubble")}
-            mascot={mascot("baby", { move: "glow", sprite: "sparkle", speciesId: SHOWCASE.baby, hueShift: speciesHue("tofiby") })}
-            footer={<Nav onBack={back} onNext={() => go("mechChild")} />}
-          />
-        ) : null}
-
-        {step === "mechChild" ? (
-          <Scene
-            key="mechChild"
-            id="mechChild"
-            bubble={t("onboarding.slide3Bubble")}
-            mascot={mascot("child", { move: "peek", sprite: "look", speciesId: SHOWCASE.child, hueShift: speciesHue("ruji") })}
-            footer={<Nav onBack={back} onNext={() => go("mechTeen")} />}
-          />
-        ) : null}
-
-        {step === "mechTeen" ? (
-          <Scene
-            key="mechTeen"
-            id="mechTeen"
-            bubble={t("onboarding.slide4Bubble")}
-            mascot={mascot("teen", { move: "hop", sprite: "bounce", speciesId: SHOWCASE.teen, hueShift: speciesHue("yildiz") })}
-            footer={<Nav onBack={back} onNext={() => go("mechAdult")} />}
-          />
-        ) : null}
-
-        {step === "mechAdult" ? (
-          <Scene
-            key="mechAdult"
-            id="mechAdult"
-            bubble={t("onboarding.slide5Bubble")}
-            mascot={
-              <div className="flex items-end gap-3">
-                {mascot("adult", { move: "shake", sprite: "worried", speciesId: SHOWCASE.adult, hueShift: speciesHue("kalyoz"), pixel: 9 })}
-                <OnboardMascot move="shake">
-                  <CreatureView
-                    speciesId="kalyoz"
-                    stage="elder"
-                    hueShift={speciesHue("kalyoz")}
-                    pixelSize={9}
-                    state="sick"
-                  />
-                </OnboardMascot>
-              </div>
-            }
-            footer={<Nav onBack={back} onNext={() => go("ai")} />}
-          />
-        ) : null}
-
-        {step === "ai" ? (
-          <Scene
-            key="ai"
-            id="ai"
-            bubble={t("onboarding.aiBubble")}
-            mascot={mascot("egg", { move: "talk", sprite: "look" })}
-            extra={
-              <div className="ai-orb-spotlight rounded-full">
-                <AiChatOrb
-                  speciesId={own}
-                  stage="egg"
-                  hueShift={ownHue}
-                  onClick={() => undefined}
-                />
-              </div>
-            }
-            footer={<Nav onBack={back} onNext={() => go("goal")} />}
-          />
-        ) : null}
-
-        {step === "goal" ? (
-          <Scene
-            key="goal"
-            id="goal"
-            bubble={t("onboarding.goalBubble")}
-            mascot={mascot("egg", { move: "peek", sprite: "look" })}
-            footer={
-              <Nav
-                onBack={back}
-                onNext={() => go("goalJoy")}
-                nextDisabled={!goalTitle.trim()}
-                nextLabel={t("onboarding.putGoal")}
-              />
-            }
-          >
+          ) : null}
+          {step === "goal" ? (
             <input
               className="mt-2 w-full px-3 py-2.5 text-center"
               placeholder={t("onboarding.goalPlaceholder")}
@@ -335,104 +215,93 @@ export default function OnboardingPage() {
               onChange={(e) => setGoalTitle(e.target.value)}
               autoFocus
             />
-          </Scene>
-        ) : null}
-
-        {step === "goalJoy" ? (
-          <Scene
-            key="goalJoy"
-            id="goalJoy"
-            bubble={t("onboarding.goalJoy")}
-            mascot={mascot("egg", { move: "hop", sprite: "happy" })}
-            footer={<Nav onBack={() => go("goal")} onNext={() => go("freq")} nextLabel={t("onboarding.together")} />}
-          />
-        ) : null}
-
-        {step === "freq" ? (
-          <Scene
-            key="freq"
-            id="freq"
-            bubble={t("onboarding.freqBubble")}
-            mascot={mascot("egg", { move: "peek", sprite: "look" })}
-            footer={<Nav onBack={back} onNext={() => go("mins")} />}
-          >
+          ) : null}
+          {step === "freq" ? (
             <div className="mt-1 flex flex-wrap justify-center gap-2">
               {FREQS.map((n) => (
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setWeekly(n)}
-                  className={`h-11 w-11 rounded-chip text-sm ${
-                    weekly === n ? "bg-pink text-base" : "bg-raised text-ink"
-                  }`}
+                  onClick={() => {
+                    setWeekly(n);
+                    playSfx("click");
+                  }}
+                  className={`h-11 w-11 rounded-chip text-sm ${weekly === n ? "bg-pink text-base" : "bg-raised text-ink"}`}
                 >
                   {n}
                 </button>
               ))}
             </div>
-          </Scene>
-        ) : null}
-
-        {step === "mins" ? (
-          <Scene
-            key="mins"
-            id="mins"
-            bubble={t("onboarding.minsBubble")}
-            mascot={mascot("egg", { move: "hop", sprite: "bounce" })}
-            footer={<Nav onBack={back} onNext={() => go("bye")} />}
-          >
+          ) : null}
+          {step === "mins" ? (
             <div className="mt-1 flex flex-wrap justify-center gap-2">
               {MINS.map((n) => (
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setMins(n)}
-                  className={`rounded-chip px-3 py-2 text-sm ${
-                    mins === n ? "bg-pink text-base" : "bg-raised text-ink"
-                  }`}
+                  onClick={() => {
+                    setMins(n);
+                    playSfx("click");
+                  }}
+                  className={`rounded-chip px-3 py-2 text-sm ${mins === n ? "bg-pink text-base" : "bg-raised text-ink"}`}
                 >
                   {n} {t("onboarding.minsUnit")}
                 </button>
               ))}
             </div>
-          </Scene>
-        ) : null}
-
-        {step === "bye" ? (
-          <Scene
-            key="bye"
-            id="bye"
-            bubble={t("onboarding.byeBubble")}
-            mascot={mascot("egg", { move: "hop", sprite: "bounce" })}
-            footer={
-              <div className="flex w-full gap-3">
-                <Button tone="ghost" onClick={back} disabled={leaving}>
-                  {t("common.back")}
-                </Button>
-                <Button className="flex-1" onClick={closeOut} disabled={leaving}>
-                  {t("onboarding.openHome")}
-                </Button>
-              </div>
-            }
-          />
-        ) : null}
+          ) : null}
+        </Scene>
       </AnimatePresence>
     </main>
   );
+
+  function footer() {
+    if (step === "welcome") {
+      return <Button onClick={() => go("gender")}>{t("onboarding.sayHi")}</Button>;
+    }
+    if (step === "bye") {
+      return (
+        <div className="flex w-full gap-3">
+          <Button tone="ghost" onClick={back} disabled={leaving}>
+            {t("common.back")}
+          </Button>
+          <Button className="flex-1" onClick={closeOut} disabled={leaving}>
+            {t("onboarding.openHome")}
+          </Button>
+        </div>
+      );
+    }
+    const i = FLOW.indexOf(step);
+    const next = FLOW[i + 1];
+    const blocked =
+      (step === "gender" && !gender) ||
+      (step === "name" && !name.trim()) ||
+      (step === "goal" && !goalTitle.trim());
+    return (
+      <Nav
+        onBack={back}
+        onNext={() => (step === "name" ? afterName() : go(next))}
+        nextDisabled={blocked}
+        nextLabel={step === "goal" ? t("onboarding.putGoal") : undefined}
+      />
+    );
+  }
 }
 
 function Scene({
   id,
   bubble,
   mascot,
-  extra,
+  preview,
+  compact,
   children,
   footer,
 }: {
   id: string;
   bubble: string;
   mascot: ReactNode;
-  extra?: ReactNode;
+  preview?: ReactNode;
+  compact?: boolean;
   children?: ReactNode;
   footer: ReactNode;
 }) {
@@ -443,15 +312,24 @@ function Scene({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -28 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-[min(88dvh,44rem)] flex-col"
+      className="flex min-h-[min(88dvh,46rem)] flex-col"
     >
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <SpeechBubble text={bubble} />
-        {mascot}
-        {extra}
+      <div className={`flex flex-1 flex-col items-center ${compact ? "justify-start gap-3 pt-1" : "justify-center gap-4"} text-center`}>
+        {compact ? (
+          <div className="flex w-full items-start gap-2 text-left">
+            <div className="shrink-0 pt-1">{mascot}</div>
+            <SpeechBubble text={bubble} side="left" />
+          </div>
+        ) : (
+          <>
+            <SpeechBubble text={bubble} />
+            {mascot}
+          </>
+        )}
+        {preview}
         {children}
       </div>
-      <div className="mt-6">{footer}</div>
+      <div className="mt-5">{footer}</div>
     </motion.div>
   );
 }
