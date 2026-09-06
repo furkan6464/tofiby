@@ -44,7 +44,7 @@ function TodayDemo() {
         />
       </div>
       <ul className="mt-3 space-y-2">
-        <Row time="14:00" title="SQL" checked />
+        <Row time="14:00" title="Koşu" checked />
         <li className="relative flex items-center gap-2 rounded-2xl bg-raised px-2.5 py-2">
           <motion.span
             className="onboard-tap"
@@ -86,38 +86,76 @@ function Row({ time, title, checked }: { time: string; title: string; checked?: 
 
 function CalendarDemo() {
   const days = tList("onboarding.weekdays").slice(0, 5);
+  const nums = ["8", "9", "10", "11", "12"];
+  const hours = ["13:00", "14:00", "15:00"];
   const [show, setShow] = useState(false);
   useEffect(() => {
     const id = window.setTimeout(() => {
       setShow(true);
       playSfx("pop");
-    }, 500);
+    }, 550);
     return () => window.clearTimeout(id);
   }, []);
   return (
-    <div className="px-2 pb-3 pt-2">
+    <div className="px-2 pb-3 pt-1">
       <p className="px-1 text-left font-display text-lg">{t("nav.calendar")}</p>
-      <div className="mt-2 grid grid-cols-5 gap-1">
+      <div className="mt-2 grid grid-cols-[1.7rem_repeat(5,minmax(0,1fr))] gap-x-0.5">
+        <span />
         {days.map((d, i) => (
-          <div key={d} className="min-h-[8.5rem] rounded-xl bg-raised px-1 py-1">
-            <p className="text-center text-[10px] text-faint">{d}</p>
-            {i === 2 && show ? (
-              <motion.div
-                initial={{ y: 16, opacity: 0, scale: 0.9 }}
-                animate={{ y: 0, opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 380, damping: 22 }}
-                className="mt-8 rounded-lg bg-[#3B82F6] px-1 py-1.5 text-[9px] leading-tight text-base"
-              >
-                SQL
-                <br />
-                14:00
-              </motion.div>
-            ) : null}
-            {i === 0 ? <div className="mt-3 rounded-lg bg-violet/80 px-1 py-1 text-[9px] text-base">İng</div> : null}
+          <div key={d} className="pb-1 text-center">
+            <p className="text-[9px] uppercase text-muted">{d}</p>
+            <span
+              className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full text-[11px] ${
+                i === 2 ? "bg-white text-black" : "text-ink"
+              }`}
+            >
+              {nums[i]}
+            </span>
           </div>
+        ))}
+        {hours.map((h) => (
+          <HourRow key={h} hour={h} show={show} />
         ))}
       </div>
     </div>
+  );
+}
+
+function HourRow({ hour, show }: { hour: string; show: boolean }) {
+  return (
+    <>
+      <p className="self-start pt-0.5 text-right text-[8px] text-faint">{hour}</p>
+      {Array.from({ length: 5 }, (_, i) => (
+        <div key={`${hour}-${i}`} className="relative h-11 border-l border-t border-white/5">
+          {hour === "13:00" && i === 0 ? (
+            <div className="absolute inset-x-0.5 top-1 overflow-hidden rounded-xl bg-violet px-1 py-1 text-left text-[8px] leading-tight text-base">
+              Koşu
+            </div>
+          ) : null}
+          {hour === "14:00" && i === 2 ? (
+            <>
+              <motion.span
+                className="onboard-tap"
+                style={{ left: "30%", top: "28%" }}
+                initial={{ opacity: 0, scale: 0.3 }}
+                animate={{ opacity: [0, 1, 0], scale: [0.3, 1, 1.35] }}
+                transition={{ duration: 0.65, delay: 0.2 }}
+              />
+              {show ? (
+                <motion.div
+                  initial={{ y: 10, opacity: 0, scale: 0.86 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 20 }}
+                  className="absolute inset-x-0.5 top-1 overflow-hidden rounded-xl bg-pink px-1 py-1 text-left text-[8px] leading-tight text-base shadow-[0_6px_14px_rgba(0,0,0,0.28)]"
+                >
+                  İngilizce
+                </motion.div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -139,7 +177,7 @@ function GoalsDemo() {
         </div>
       </div>
       <div className="mt-2 rounded-panel bg-raised p-3 opacity-70">
-        <p className="text-sm">SQL</p>
+        <p className="text-sm">Koşu</p>
         <div className="mt-2 h-2 rounded-full bg-base">
           <div className="h-full w-[40%] rounded-full bg-violet" />
         </div>
