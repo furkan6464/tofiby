@@ -1,4 +1,4 @@
-import { insightBundle, isTaskDone } from "./plan";
+import { insightBundle, isTaskDone, splitStudySessions } from "./plan";
 import { dayMonth, minutesInZone, remainingWeekKeys, todayKey, zonedParts } from "./dates";
 import { minutesOf } from "./timeBlock";
 import { useApp } from "./store";
@@ -118,14 +118,22 @@ export function deferToolCalls(
         });
         continue;
       }
-      pending = insight.window
-        ? { kind: "consultHours", title, hours, goalId, week: "this" }
-        : { kind: "pickSlots", title, hours, goalId, week: "this", mode: "hours" };
+      pending = {
+        kind: "planSession",
+        title,
+        hours,
+        goalId,
+        week: "this",
+        sessions: splitStudySessions(hours),
+        index: 0,
+        step: "day",
+        placed: [],
+      };
       deferred.push({
         id: call.id,
         name: call.name,
         ok: true,
-        data: { deferred: true, reason: insight.window ? "consult" : "pick" },
+        data: { deferred: true, reason: "sessions", count: pending.sessions.length },
       });
       continue;
     }

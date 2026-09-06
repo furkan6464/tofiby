@@ -154,6 +154,19 @@ export function nextWeekKeys(today: string): string[] {
   return weekKeys(addDays(weekKeys(today)[0], 7));
 }
 
+/** Enough upcoming days to place each study session on a different day. */
+export function daysForStudy(today: string, sessionCount: number, week: "this" | "next" = "this"): string[] {
+  const want = Math.max(1, sessionCount);
+  let days = week === "next" ? nextWeekKeys(today) : remainingWeekKeys(today);
+  while (days.length < want && days.length < 14) {
+    const last = days[days.length - 1] ?? today;
+    const more = weekKeys(addDays(weekKeys(last)[0], 7)).filter((d) => d > last);
+    if (more.length === 0) break;
+    days = [...days, ...more];
+  }
+  return days.filter((d) => d >= today).slice(0, 14);
+}
+
 export function dayMonth(dateKey: string, locale = "tr-TR"): string {
   const [y, m, d] = dateKey.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {

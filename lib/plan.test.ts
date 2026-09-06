@@ -10,8 +10,9 @@ import {
   postponeTo,
   remainingToStreak,
   scheduleHours,
+  splitStudySessions,
 } from "./plan";
-import { weekKeys } from "./dates";
+import { daysForStudy, weekKeys } from "./dates";
 import { sampleTask } from "./testTask";
 import type { Milestone } from "./types";
 
@@ -178,5 +179,38 @@ describe("plan", () => {
       return h * 60 + m >= 15 * 60;
     }));
     assert.ok(!placed.some((p) => p.time === "08:00" || p.time === "09:00"));
+  });
+
+  it("splits hours into one-hour study sessions", () => {
+    assert.deepEqual(splitStudySessions(6), [60, 60, 60, 60, 60, 60]);
+    assert.deepEqual(splitStudySessions(3), [60, 60, 60]);
+    assert.deepEqual(splitStudySessions(2.5), [60, 60, 30]);
+  });
+
+  it("spreads six hours across different days instead of stacking one day", () => {
+    const today = "2026-09-07";
+    const placed = scheduleHours({
+      hours: 6,
+      title: "SQL",
+      week: weekKeys(today),
+      tasks: [],
+      busy: [],
+      userId: "u",
+      today,
+      nowMin: 8 * 60,
+    });
+    const days = new Set(placed.map((p) => p.date));
+    assert.equal(placed.length, 6);
+    assert.ok(days.size >= 6);
+    assert.ok([...days].every((d) => placed.filter((p) => p.date === d).length === 1));
+    assert.ok(placed.every((p) => p.minutes <= 60));
+  });
+
+  it("opens next week when this week has too few days left", () => {
+    const today = "2026-09-06";
+    const days = daysForStudy(today, 6, "this");
+    assert.ok(days.includes(today));
+    assert.ok(days.length >= 6);
+    assert.ok(days.some((d) => d > today));
   });
 });

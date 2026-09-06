@@ -22,12 +22,14 @@ import { gitLinksFromReply } from "@/lib/aiRules";
 import { sanitizeAiSpeech } from "@/lib/aiSpeech";
 import { applyChatCalendarAdds, applyScheduleHours, applyTaskDraft, runAiTools, undoAiAction } from "@/lib/aiToolRuntime";
 import type { AiToolTrace, ChatMessage, ChatPending, ChatReply, ChatUndo, ScheduleLesson, TaskDraft } from "@/lib/aiTypes";
-import { nextWeekKeys, remainingWeekKeys, todayKey } from "@/lib/dates";
+import { daysForStudy, nextWeekKeys, remainingWeekKeys, todayKey } from "@/lib/dates";
+import { splitStudySessions } from "@/lib/plan";
 import { durationBetween, minutesOf } from "@/lib/timeBlock";
 import { liveProgress, useActiveCreature, useApp, useSession, useTodayBundle } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { ChatTimePicker } from "./ChatTimePicker";
 import { LessonEditor } from "./LessonEditor";
+import { StudySessionPicker } from "./StudySessionPicker";
 
 type Bubble = ChatMessage & { links?: ChatReply["links"]; undos?: ChatUndo[] };
 
@@ -218,9 +220,7 @@ function FriendChat({
     const { today } = planningNow();
     const days = onlyDates?.length
       ? onlyDates.filter((d) => week === "next" || d >= today)
-      : week === "next"
-        ? nextWeekKeys(today)
-        : remainingWeekKeys(today);
+      : daysForStudy(today, splitStudySessions(hours).length, week);
     const placed = applyScheduleHours({ title, hours, goalId, week: days, preferStartMin });
     if (placed.undo) {
       pushModel(placed.undo.label, { undos: [placed.undo] });
@@ -256,6 +256,35 @@ function FriendChat({
     else setErr(t("ai.noneAdded"));
   }
 
+  function addPlannedSession(card: Extract<ChatPending, { kind: "planSession" }>, time: string) {
+    if (!card.date) return;
+    const minutes = card.sessions[card.index] ?? 60;
+    const made = applyTaskDraft({
+      title: card.title,
+      date: card.date,
+      time,
+      durationMinutes: minutes,
+      goalId: card.goalId,
+    });
+    if (made.error || !made.undo) {
+      setErr(t("ai.noneAdded"));
+      return;
+    }
+    pushModel(made.undo.label, { undos: [made.undo] });
+    const next = card.index + 1;
+    if (next >= card.sessions.length) {
+      setPending(null);
+      return;
+    }
+    setPending({
+      ...card,
+      index: next,
+      step: "day",
+      date: undefined,
+      placed: [...card.placed, { date: card.date, time, minutes }],
+    });
+  }
+
   async function send() {
     const next = text.trim();
     if (busy || !user || !creature) return;
@@ -275,7 +304,17 @@ function FriendChat({
           setText("");
           setPending(
             pending.kind === "consultHours"
-              ? { kind: "pickSlots", title: pending.title, hours: pending.hours, goalId: pending.goalId, week: pending.week, mode: "hours" }
+              ? {
+                  kind: "planSession",
+                  title: pending.title,
+                  hours: pending.hours,
+                  goalId: pending.goalId,
+                  week: pending.week,
+                  sessions: splitStudySessions(pending.hours),
+                  index: 0,
+                  step: "day",
+                  placed: [],
+                }
               : { kind: "pickSlots", title: pending.draft.title, draft: pending.draft, week: "this", mode: "task" },
           );
           return;
@@ -342,6 +381,7 @@ function FriendChat({
     let last: ChatReply | null = null;
     let pendingHref: string | null = null;
     let didDefer = false;
+    let sessionCard: Extract<ChatPending, { kind: "planSession" }> | null = null;
 
     for (let i = 0; i < 4; i++) {
       if (!result.ok) {
@@ -374,6 +414,7 @@ function FriendChat({
       if (gated.pending) {
         setPending(gated.pending);
         didDefer = true;
+        if (gated.pending.kind === "planSession") sessionCard = gated.pending;
       }
       const ran = runAiTools(gated.pass, {
         navigate: (href) => {
@@ -424,7 +465,18 @@ function FriendChat({
       result = await chatContinue(history, { ...snap, hasAttachedFile: Boolean(attached) }, traces);
     }
 
-    if (didDefer && last && /ekledim|yazdım|yazdim|koydum|eklendi/i.test(last.reply)) {
+    if (sessionCard) {
+      last = {
+        reply: t("ai.sessionIntro", {
+          title: sessionCard.title,
+          hours: sessionCard.hours,
+          n: sessionCard.sessions.length,
+        }),
+        links: last?.links ?? [],
+        calendarAdds: last?.calendarAdds ?? [],
+        toolCalls: last?.toolCalls ?? [],
+      };
+    } else if (didDefer && last && /ekledim|yazdım|yazdim|koydum|eklendi/i.test(last.reply)) {
       last = { ...last, reply: "" };
     }
 
@@ -657,12 +709,15 @@ function FriendChat({
                           setPending(
                             pending.kind === "consultHours"
                               ? {
-                                  kind: "pickSlots",
+                                  kind: "planSession",
                                   title: pending.title,
                                   hours: pending.hours,
                                   goalId: pending.goalId,
                                   week: pending.week,
-                                  mode: "hours",
+                                  sessions: splitStudySessions(pending.hours),
+                                  index: 0,
+                                  step: "day",
+                                  placed: [],
                                 }
                               : {
                                   kind: "pickSlots",
@@ -679,6 +734,31 @@ function FriendChat({
                     </div>
                   </>
                 ) : null}
+                {pending.kind === "planSession" ? (
+                  <>
+                    <p className="text-sm font-medium">
+                      {t("ai.sessionStep", {
+                        cur: pending.index + 1,
+                        min: pending.sessions[pending.index] ?? 60,
+                        total: pending.sessions.length,
+                      })}
+                    </p>
+                    <StudySessionPicker
+                      key={`${pending.index}-${pending.step}-${pending.date ?? "day"}`}
+                      days={daysForStudy(today, pending.sessions.length, pending.week)}
+                      today={today}
+                      nowMin={planningNow().nowMin}
+                      step={pending.step}
+                      date={pending.date}
+                      minutes={pending.sessions[pending.index] ?? 60}
+                      takenDates={pending.placed.map((p) => p.date)}
+                      preferStartMin={insight.startMin}
+                      onPickDay={(date) => setPending({ ...pending, step: "time", date })}
+                      onBack={() => setPending({ ...pending, step: "day", date: undefined })}
+                      onSubmit={(time) => addPlannedSession(pending, time)}
+                    />
+                  </>
+                ) : null}
                 {pending.kind === "pickSlots" ? (
                   <>
                     {!insight.window ? <p className="text-sm">{t("ai.consultNoData")}</p> : null}
@@ -691,14 +771,18 @@ function FriendChat({
                       multi={pending.mode === "hours"}
                       onSubmit={(dates, time) => {
                         if (pending.mode === "hours") {
-                          finishHours(
-                            pending.title,
-                            pending.hours ?? 1,
-                            pending.goalId,
-                            pending.week,
-                            minutesOf(time),
-                            dates,
-                          );
+                          setPending({
+                            kind: "planSession",
+                            title: pending.title,
+                            hours: pending.hours ?? 1,
+                            goalId: pending.goalId,
+                            week: pending.week,
+                            sessions: splitStudySessions(pending.hours ?? 1),
+                            index: 0,
+                            step: dates[0] ? "time" : "day",
+                            date: dates[0],
+                            placed: [],
+                          });
                           return;
                         }
                         const draft = pending.draft ?? {

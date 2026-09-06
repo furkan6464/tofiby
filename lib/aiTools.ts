@@ -198,6 +198,7 @@ export function toolRulesForAi(): string {
     "Hesap silme, arkadaşlık isteği, ödeme, profil silme YASAK. Bunları asla çağırma, sohbetten tetikleme.",
     "parseSchedulePhoto yalnızca snapshot.hasAttachedFile true ise. Yoksa ataşlamasını söyle, uydurma program yazma.",
     "scheduleStudyHours mevcut planlama motorudur. 'bu hafta X'e N saat' deyince onu kullan.",
+    "Saat planını aynı güne yığma. İstemci her çalışmayı ayrı gün+saat olarak soracak; sen 'ekledim' deme, sadece aracı çağır.",
     "goalId/taskId yoksa snapshot'taki ada göre goalTitle/taskTitle yaz.",
     "Çakışan saate görev koyma; snapshot.week busy/free kullan.",
   ].join("\n");

@@ -20,6 +20,7 @@ import { assignHiddenEggSpecies, breedOffspring, defaultGenetics, eggShellVarian
 import {
   addDays,
   canMutateTaskDate,
+  daysForStudy,
   detectTimezone,
   diffDays,
   minutesInZone,
@@ -56,7 +57,7 @@ import type {
   UserAchievement,
   UserProfile,
 } from "./types";
-import { scheduleHours, syncMilestoneCompletion } from "./plan";
+import { scheduleHours, splitStudySessions, syncMilestoneCompletion } from "./plan";
 import { evaluateAchievements, LETTER_MILESTONES } from "./achievements";
 import { isRestWeekday, roomUnlocks } from "./bond";
 import {
@@ -766,10 +767,13 @@ export const useApp = create<AppState>()(
         const minutesNeeded = Math.max(0, hours) * 60;
         if (!user) return { added: 0, taskIds: [], minutesPlaced: 0, minutesNeeded };
         const today = todayKey(user.timezone);
+        const want = splitStudySessions(hours).length;
+        const future = week.filter((d) => d >= today);
+        const days = future.length >= want ? week : daysForStudy(today, want, "this");
         const slots = scheduleHours({
           hours,
           title,
-          week,
+          week: days,
           tasks: get().tasks,
           busy: get().busySlots,
           userId: user.id,

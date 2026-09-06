@@ -330,6 +330,24 @@ function clipFreeToNow(
     .filter((s) => s.endMin - s.startMin >= 25);
 }
 
+export function splitStudySessions(hours: number): number[] {
+  const total = Math.max(0, Math.round(Number(hours) * 60));
+  if (total <= 0) return [];
+  const n = Math.max(1, Math.ceil(total / 60));
+  const out: number[] = [];
+  let left = total;
+  for (let i = 0; i < n; i++) {
+    const size = i === n - 1 ? left : 60;
+    if (size < 25) {
+      if (out.length) out[out.length - 1] += size;
+      break;
+    }
+    out.push(size);
+    left -= size;
+  }
+  return out;
+}
+
 function takeChunk(
   slot: { startMin: number; endMin: number },
   left: number,
@@ -350,6 +368,31 @@ function takeChunk(
   return { startMin: start, minutes };
 }
 
+function freeOnDate(input: {
+  date: string;
+  tasks: Task[];
+  busy: BusySlot[];
+  userId: string;
+  title: string;
+  today?: string;
+  nowMin?: number;
+  extra: { date: string; time: string; minutes: number }[];
+}): { startMin: number; endMin: number }[] {
+  const taken = input.extra
+    .filter((p) => p.date === input.date)
+    .map((p, i) => ({
+      id: `placed-${input.date}-${i}`,
+      userId: input.userId,
+      date: input.date,
+      startMin: Number(p.time.slice(0, 2)) * 60 + Number(p.time.slice(3, 5)),
+      endMin: Number(p.time.slice(0, 2)) * 60 + Number(p.time.slice(3, 5)) + p.minutes,
+      source: "app" as const,
+      title: input.title,
+    }));
+  const raw = findFreeSlots([...collectBusy(input.tasks, input.busy, input.userId, input.date), ...taken]);
+  return input.today && input.date === input.today ? clipFreeToNow(raw, input.nowMin) : raw;
+}
+
 export function scheduleHours(input: {
   hours: number;
   title: string;
@@ -361,85 +404,61 @@ export function scheduleHours(input: {
   nowMin?: number;
   preferStartMin?: number;
 }): { date: string; time: string; minutes: number }[] {
-  const minutesNeeded = input.hours * 60;
-  const placed: { date: string; time: string; minutes: number }[] = [];
-  let left = minutesNeeded;
+  const sessions = splitStudySessions(input.hours);
   const days = input.week.filter((d) => !input.today || d >= input.today);
+  const placed: { date: string; time: string; minutes: number }[] = [];
+  if (!sessions.length || !days.length) return placed;
 
-  const freeOn = (date: string) => {
-    const busy = collectBusy(input.tasks, input.busy, input.userId, date);
-    const raw = findFreeSlots(busy);
-    return input.today && date === input.today ? clipFreeToNow(raw, input.nowMin) : raw;
-  };
+  const perDayCap =
+    sessions.length <= days.length ? 60 : Math.min(120, 60 * Math.ceil(sessions.length / days.length));
+  const load = new Map<string, number>();
 
-  const push = (date: string, startMin: number, minutes: number) => {
-    const h = Math.floor(startMin / 60);
-    const m = startMin % 60;
-    placed.push({
+  const tryPlace = (date: string, minutes: number) => {
+    if ((load.get(date) ?? 0) + minutes > perDayCap) return false;
+    const open = freeOnDate({
       date,
-      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
-      minutes,
+      tasks: input.tasks,
+      busy: input.busy,
+      userId: input.userId,
+      title: input.title,
+      today: input.today,
+      nowMin: input.nowMin,
+      extra: placed,
     });
-    left -= minutes;
-  };
-
-  if (input.preferStartMin != null) {
-    for (const date of days) {
-      if (left <= 0) break;
-      for (const slot of freeOn(date)) {
-        const chunk = takeChunk(slot, Math.min(60, left), input.preferStartMin);
-        if (!chunk) continue;
-        push(date, chunk.startMin, chunk.minutes);
-        break;
-      }
-    }
-  }
-
-  for (const date of days) {
-    if (left <= 0) break;
-    const taken = placed.filter((p) => p.date === date).map((p) => ({
-      startMin: Number(p.time.slice(0, 2)) * 60 + Number(p.time.slice(3, 5)),
-      endMin:
-        Number(p.time.slice(0, 2)) * 60 +
-        Number(p.time.slice(3, 5)) +
-        p.minutes,
-    }));
-    const free = findFreeSlots(
-      [
-        ...collectBusy(input.tasks, input.busy, input.userId, date),
-        ...taken.map((b, i) => ({
-          id: `placed-${date}-${i}`,
-          userId: input.userId,
-          date,
-          startMin: b.startMin,
-          endMin: b.endMin,
-          source: "app" as const,
-          title: input.title,
-        })),
-      ],
-      8 * 60,
-      22 * 60,
-    );
-    const open = input.today && date === input.today ? clipFreeToNow(free, input.nowMin) : free;
     const ordered =
       input.preferStartMin == null
         ? open
         : [...open].sort(
-            (a, b) =>
-              Math.abs(a.startMin - input.preferStartMin!) -
-              Math.abs(b.startMin - input.preferStartMin!),
+            (a, b) => Math.abs(a.startMin - input.preferStartMin!) - Math.abs(b.startMin - input.preferStartMin!),
           );
     for (const slot of ordered) {
-      if (left <= 0) break;
-      const chunk = takeChunk(slot, left, input.preferStartMin);
-      if (!chunk) {
-        const fallback = takeChunk(slot, left);
-        if (!fallback) continue;
-        push(date, fallback.startMin, fallback.minutes);
-        continue;
-      }
-      push(date, chunk.startMin, chunk.minutes);
+      const chunk = takeChunk(slot, minutes, input.preferStartMin) ?? takeChunk(slot, minutes);
+      if (!chunk || chunk.minutes < minutes) continue;
+      const h = Math.floor(chunk.startMin / 60);
+      const m = chunk.startMin % 60;
+      placed.push({
+        date,
+        time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+        minutes: chunk.minutes,
+      });
+      load.set(date, (load.get(date) ?? 0) + chunk.minutes);
+      return true;
     }
+    return false;
+  };
+
+  let cursor = 0;
+  for (const minutes of sessions) {
+    let ok = false;
+    for (let i = 0; i < days.length; i++) {
+      const date = days[(cursor + i) % days.length];
+      if (tryPlace(date, minutes)) {
+        cursor = (days.indexOf(date) + 1) % days.length;
+        ok = true;
+        break;
+      }
+    }
+    if (!ok) break;
   }
   return placed;
 }

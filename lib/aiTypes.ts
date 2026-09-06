@@ -69,6 +69,18 @@ export type ChatPending =
       draft?: TaskDraft;
       mode: "hours" | "task";
     }
+  | {
+      kind: "planSession";
+      title: string;
+      hours: number;
+      goalId?: string | null;
+      week: "this" | "next";
+      sessions: number[];
+      index: number;
+      step: "day" | "time";
+      date?: string;
+      placed: { date: string; time: string; minutes: number }[];
+    }
   | { kind: "confirmTask"; draft: TaskDraft }
   | {
       kind: "nextWeek";
